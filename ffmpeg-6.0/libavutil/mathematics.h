@@ -115,6 +115,7 @@ enum AVRounding {
  * @param b Operand
  * @return GCD of a and b up to sign; if a >= 0 and b >= 0, return value is >= 0;
  * if a == 0 and b == 0, returns 0.
+ * 最大公约数
  */
 int64_t av_const av_gcd(int64_t a, int64_t b);
 
@@ -127,6 +128,7 @@ int64_t av_const av_gcd(int64_t a, int64_t b);
  * This function is equivalent to av_rescale_rnd() with #AV_ROUND_NEAR_INF.
  *
  * @see av_rescale_rnd(), av_rescale_q(), av_rescale_q_rnd()
+ * a的单位是c  目的是从c变换到b
  */
 int64_t av_rescale(int64_t a, int64_t b, int64_t c) av_const;
 
@@ -138,6 +140,7 @@ int64_t av_rescale(int64_t a, int64_t b, int64_t c) av_const;
  * If the result is not representable then INT64_MIN is returned.
  *
  * @see av_rescale(), av_rescale_q(), av_rescale_q_rnd()
+ * a的单位是c  目的是从c变换到b
  */
 int64_t av_rescale_rnd(int64_t a, int64_t b, int64_t c, enum AVRounding rnd) av_const;
 
@@ -149,6 +152,8 @@ int64_t av_rescale_rnd(int64_t a, int64_t b, int64_t c, enum AVRounding rnd) av_
  * This function is equivalent to av_rescale_q_rnd() with #AV_ROUND_NEAR_INF.
  *
  * @see av_rescale(), av_rescale_rnd(), av_rescale_q_rnd()
+ *
+ *  a的单位是bq 把一个整数时间戳从一种时间基bq换算到另一种时间基cq
  */
 int64_t av_rescale_q(int64_t a, AVRational bq, AVRational cq) av_const;
 
@@ -158,6 +163,7 @@ int64_t av_rescale_q(int64_t a, AVRational bq, AVRational cq) av_const;
  * The operation is mathematically equivalent to `a * bq / cq`.
  *
  * @see av_rescale(), av_rescale_rnd(), av_rescale_q()
+ * a的单位是bq 把一个整数时间戳从一种时间基bq换算到另一种时间基cq
  */
 int64_t av_rescale_q_rnd(int64_t a, AVRational bq, AVRational cq,
                          enum AVRounding rnd) av_const;

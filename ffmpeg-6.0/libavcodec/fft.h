@@ -56,6 +56,21 @@ typedef struct FFTContext FFTContext;
 
 #endif /* FFT_FLOAT */
 
+
+/*
+ FFT的输出 代表了多少个不同速度旋转的圆。 或者是 代表了多个不同频率的波形。
+ 
+ 比如 3+4i
+ 波形：
+ * 实部 = 3
+ * 虚部 = 4
+ 幅度 = √(3²+4²)=5
+ 相位 = atan2(4,3)=53°
+ 
+ 旋转的圆：
+ 圆的半径： √(3²+4²)=5
+ 角度：atan2(4,3)
+ */
 typedef struct FFTDComplex {
     FFTDouble re, im;
 } FFTDComplex;

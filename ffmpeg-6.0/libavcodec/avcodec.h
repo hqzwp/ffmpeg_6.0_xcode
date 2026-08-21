@@ -553,6 +553,7 @@ typedef struct AVCodecContext {
      * if no telecine is used ...
      *
      * Set to time_base ticks per frame. Default 1, e.g., H.264/MPEG-2 set it to 2.
+     *  ex: 一秒50个刻度  一帧占了2个刻度  
      */
     int ticks_per_frame;
 
@@ -2820,7 +2821,7 @@ typedef struct AVCodecParserContext {
     int64_t cur_offset; /* current offset
                            (incremented by each av_parser_parse()) */
     int64_t next_frame_offset; /* offset of the next frame */
-    /* video info */
+    /* video info   刚解析出的这一帧（ */
     int pict_type; /* XXX: Put it back in AVCodecContext. */
     /**
      * This field is used for proper frame duration computation in lavf.

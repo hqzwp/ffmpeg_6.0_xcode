@@ -240,15 +240,17 @@ typedef struct AVIOContext {
     int (*read_packet)(void *opaque, uint8_t *buf, int buf_size);
     int (*write_packet)(void *opaque, uint8_t *buf, int buf_size);
     int64_t (*seek)(void *opaque, int64_t offset, int whence);
+    // 写 缓冲起点   读 缓冲终点
     int64_t pos;            /**< position in the file of the current buffer */
     int eof_reached;        /**< true if was unable to read due to error or eof */
     int error;              /**< contains the error code or 0 if no error happened */
     int write_flag;         /**< true if open for writing */
-    int max_packet_size;
+    int max_packet_size;    /**< if non zero, the stream is packetized with this max packet size */
     int min_packet_size;    /**< Try to buffer at least this amount of data
                                  before flushing it. */
     unsigned long checksum;
     unsigned char *checksum_ptr;
+    //每一段或每几桢会有一个校验值   整个文件的校验和最终是加起来的
     unsigned long (*update_checksum)(unsigned long checksum, const uint8_t *buf, unsigned int size);
     /**
      * Pause or resume playback for network streaming protocols - e.g. MMS.
@@ -263,6 +265,7 @@ typedef struct AVIOContext {
                          int64_t timestamp, int flags);
     /**
      * A combination of AVIO_SEEKABLE_ flags or 0 when the stream is not seekable.
+     *  直播时就不能seek
      */
     int seekable;
 
@@ -285,6 +288,7 @@ typedef struct AVIOContext {
 
     /**
      * A callback that is used instead of write_packet.
+     *  通常自定义时会用到
      */
     int (*write_data_type)(void *opaque, uint8_t *buf, int buf_size,
                            enum AVIODataMarkerType type, int64_t time);
@@ -298,6 +302,7 @@ typedef struct AVIOContext {
     /**
      * Maximum reached position before a backward seek in the write buffer,
      * used keeping track of already written data for a later flush.
+     *  写数据时 缓存里的数据可能会回退  回退后buf_ptr_max代表回退之前的位置
      */
     unsigned char *buf_ptr_max;
 
@@ -418,6 +423,7 @@ AVIOContext *avio_alloc_context(
  */
 void avio_context_free(AVIOContext **s);
 
+
 void avio_w8(AVIOContext *s, int b);
 void avio_write(AVIOContext *s, const unsigned char *buf, int size);
 void avio_wl64(AVIOContext *s, uint64_t val);
@@ -470,6 +476,7 @@ void avio_write_marker(AVIOContext *s, int64_t time, enum AVIODataMarkerType typ
  * ORing this as the "whence" parameter to a seek function causes it to
  * return the filesize without seeking anywhere. Supporting this is optional.
  * If it is not supported then the seek function will return <0.
+ *  用seek 获取文件大小
  */
 #define AVSEEK_SIZE 0x10000
 
@@ -495,6 +502,7 @@ int64_t avio_skip(AVIOContext *s, int64_t offset);
 
 /**
  * ftell() equivalent for AVIOContext.
+ * 当前文件位置
  * @return position or AVERROR.
  */
 static av_always_inline int64_t avio_tell(AVIOContext *s)
@@ -736,7 +744,7 @@ int avio_get_dyn_buf(AVIOContext *s, uint8_t **pbuffer);
  * Return the written size and a pointer to the buffer. The buffer
  * must be freed with av_free().
  * Padding of AV_INPUT_BUFFER_PADDING_SIZE is added to the buffer.
- *
+ *  
  * @param s IO context
  * @param pbuffer pointer to a byte buffer
  * @return the length of the byte buffer

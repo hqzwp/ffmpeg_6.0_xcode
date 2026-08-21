@@ -1214,7 +1214,7 @@ enum OptGroup {
     GROUP_OUTFILE,
     GROUP_INFILE,
 };
-
+//输入组和输出组
 static const OptionGroupDef groups[] = {
     [GROUP_OUTFILE] = { "output url",  NULL, OPT_OUTPUT },
     [GROUP_INFILE]  = { "input url",   "i",  OPT_INPUT },
@@ -1268,14 +1268,12 @@ int ffmpeg_parse_options(int argc, char **argv)
         av_log(NULL, AV_LOG_FATAL, "Error splitting the argument list: ");
         goto fail;
     }
-
     /* apply global options */
     ret = parse_optgroup(NULL, &octx.global_opts);
     if (ret < 0) {
         av_log(NULL, AV_LOG_FATAL, "Error parsing global options: ");
         goto fail;
     }
-
     /* configure terminal and setup signal handlers */
     term_init();
 
@@ -1343,7 +1341,7 @@ int opt_timelimit(void *optctx, const char *opt, const char *arg)
 #endif
     return 0;
 }
-
+//  只要带(OPT_PERFILE | OPT_SPEC | OPT_OFFSET) 三者之中的其中一个 就是输入和输出
 #define OFFSET(x) offsetof(OptionsContext, x)
 const OptionDef options[] = {
     /* main options */

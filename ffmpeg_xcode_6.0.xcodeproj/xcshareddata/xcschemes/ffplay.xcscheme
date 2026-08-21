@@ -54,8 +54,52 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-i /Users/haixiaomian/Desktop/ff37.mp4"
+            argument = " -ss 00:10:32 -x 200  -autoexit -alwaysontop -i  /Users/haixiaomian/Desktop/ff37.mp4"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-x 300 -ss 00:00:18  -i /Users/haixiaomian/Desktop/hsl1/m.m3u8"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-x 300 -i /Users/haixiaomian/Desktop/hsl1_disc/m.m3u8"
             isEnabled = "YES">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-x 300 -ss 00:00:00 -i /Users/haixiaomian/Desktop/hsl1/m.m3u8"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-x 300  -i /Users/haixiaomian/Desktop/ff37.h264"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = " -loglevel debug   -x 300  -i /Users/haixiaomian/Desktop/ff37.mp4"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = " -x 300  -i /Users/haixiaomian/Desktop/ff37.mp4"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = " -x 300  -i /Users/haixiaomian/Desktop/hls/m.m3u8"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-nodisp -i /Users/haixiaomian/Desktop/ff37.mp4"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = " -x 100  -i /Users/haixiaomian/Desktop/hjjxhn.mp3"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = " -x 100  -i /Users/haixiaomian/Desktop/f37574.aac"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-vn -ss 00:10:32 -x 200 -i  /Users/haixiaomian/Desktop/ff37.mp4"
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

@@ -35,6 +35,7 @@ typedef struct FFIOContext {
 
     /**
      * Threshold to favor readahead over seek.
+     * 当seek达到一定的值时 才走seek 不然就连续读
      */
     int short_seek_threshold;
 
@@ -94,6 +95,8 @@ void ffio_init_context(FFIOContext *s,
                   int64_t (*seek)(void *opaque, int64_t offset, int whence));
 
 
+void ffio_init_read_context(FFIOContext *s, const uint8_t *buffer, int buffer_size);
+void ffio_init_write_context(FFIOContext *s, uint8_t *buffer, int buffer_size);
 /**
  * Read size bytes from AVIOContext, returning a pointer.
  * Note that the data pointed at by the returned pointer is only
@@ -129,9 +132,10 @@ static av_always_inline void ffio_wfourcc(AVIOContext *pb, const uint8_t *s)
  * @param buf_size The size of buf
  * @return >= 0 in case of success, a negative value corresponding to an
  * AVERROR code in case of failure
+ *  把探测数据添加到AVIOContext 中   buf必须是文件开始的数据 
  */
 int ffio_rewind_with_probe_data(AVIOContext *s, unsigned char **buf, int buf_size);
-
+//读可边长数字   每个字节的最高位是标志位
 uint64_t ffio_read_varlen(AVIOContext *bc);
 
 /**
@@ -158,9 +162,10 @@ int ffio_realloc_buf(AVIOContext *s, int buf_size);
  * Once the stream position moves outside this window or another
  * ffio_ensure_seekback call requests a buffer outside this window this
  * guarantee is lost.
+ *  确保能回退 buf_size
  */
 int ffio_ensure_seekback(AVIOContext *s, int64_t buf_size);
-
+//保证下次读的时候 要在一定的范围内 
 int ffio_limit(AVIOContext *s, int size);
 
 void ffio_init_checksum(AVIOContext *s,

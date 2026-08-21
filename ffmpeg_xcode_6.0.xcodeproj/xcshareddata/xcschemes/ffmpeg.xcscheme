@@ -68,12 +68,16 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
+            argument = "-y -loglevel debug  -i /Users/haixiaomian/Desktop/ff37.mp4  -i /Users/haixiaomian/Desktop/f37574.aac  -map 0:v -map 1:a /Users/haixiaomian/Desktop/mix.mp4"
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
             argument = "-report "
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-report -i in.mp4 out.mp4"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-filters"
@@ -104,6 +108,10 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
+            argument = ""
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
             argument = "-buildconf"
             isEnabled = "NO">
          </CommandLineArgument>
@@ -117,10 +125,10 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-formats"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-re -f avfoundation -r 30 -i 0  -acodec copy -vcodec h264_videotoolbox -f flv rtmp://hqzwp.cn/live/livestream"
+            argument = "-re -y -f avfoundation -r 30 -i 0  -acodec copy  -preset veryfast  -vcodec h264_videotoolbox  -f mov  /Users/haixiaomian/Desktop/out.mov"
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument

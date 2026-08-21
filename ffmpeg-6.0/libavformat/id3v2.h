@@ -27,6 +27,109 @@
 #include "internal.h"
 #include "metadata.h"
 
+
+//从音频文件头里读出元数据（标题、歌手、封面等）。  
+
+
+/*
+ +------------------+
+
+ | Tag Header       | 10 Bytes
+
+ +------------------+
+
+ | Extended Header? | 可选
+
+ +------------------+
+
+ | Frame 1          |
+
+ +------------------+
+
+ | Frame 2          |
+
+ +------------------+
+
+ | Frame 3          |
+
+ +------------------+
+
+ | ...              |
+
+ +------------------+
+
+ | Padding          |
+
+ +------------------+
+ 
+ 
+ Tag Header
+ Offset  Size    内容
+ 0       3       "ID3"
+ 3       1       Version Major
+ 4       1       Version Revision
+ 5       1       Flags
+ 6       4       Tag Size
+ 
+ 
+ Frame
+ 
+ Frame
+
+ 含义
+
+ TIT2
+
+ Title（歌曲名）
+
+ TPE1
+
+ Artist（歌手）
+
+ TALB
+
+ Album（专辑）
+
+ TYER
+
+ Year（年份，v2.3）
+
+ TCON
+
+ Genre（流派）
+
+ TRCK
+
+ Track（曲目号）
+
+ COMM
+
+ Comment（评论）
+
+ APIC
+
+ Album Cover（封面图片）
+
+ USLT
+
+ Lyrics（歌词）
+
+ TXXX
+
+ 用户自定义文本
+
+ WXXX
+
+ 用户自定义网址
+ 
+ 
+ */
+
+
+
+
+
+
 #define ID3v2_HEADER_SIZE 10
 
 /**

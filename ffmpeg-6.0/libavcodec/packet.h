@@ -311,7 +311,7 @@ enum AVPacketSideDataType {
 };
 
 #define AV_PKT_DATA_QUALITY_FACTOR AV_PKT_DATA_QUALITY_STATS //DEPRECATED
-
+//ffmpeg的运行时信息
 typedef struct AVPacketSideData {
     uint8_t *data;
     size_t   size;
@@ -371,6 +371,7 @@ typedef struct AVPacket {
      * Can be AV_NOPTS_VALUE if it is not stored in the file.
      */
     int64_t dts;
+    //这里的data一般只是引用 不会开辟新的空间  
     uint8_t *data;
     int   size;
     int   stream_index;

@@ -29,7 +29,7 @@ typedef struct SampleFmtInfo {
     char name[8];
     int bits;
     int planar;
-    enum AVSampleFormat altform; ///< planar<->packed alternative form
+    enum AVSampleFormat altform; ///< planar<->packed alternative form 成对的另一种布局（packed ↔ planar）
 } SampleFmtInfo;
 
 /** this table gives more information about formats */

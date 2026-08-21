@@ -105,6 +105,7 @@ static const AVOption file_options[] = {
     { "blocksize", "set I/O operation maximum block size", offsetof(FileContext, blocksize), AV_OPT_TYPE_INT, { .i64 = INT_MAX }, 1, INT_MAX, AV_OPT_FLAG_ENCODING_PARAM },
     { "follow", "Follow a file as it is being written", offsetof(FileContext, follow), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
     { "seekable", "Sets if the file is seekable", offsetof(FileContext, seekable), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 0, AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_ENCODING_PARAM },
+//    { "seekable", "Sets if the file is seekable", offsetof(FileContext, seekable), AV_OPT_TYPE_INT, { .i64 = -1 }, -1, 1, AV_OPT_FLAG_DECODING_PARAM | AV_OPT_FLAG_ENCODING_PARAM },
     { NULL }
 };
 
@@ -191,7 +192,7 @@ static int file_check(URLContext *h, int mask)
     }
     return ret;
 }
-
+//当开启子进程时 拷贝一个完整的fd
 static int fd_dup(URLContext *h, int oldfd)
 {
     int newfd;
@@ -228,12 +229,12 @@ static int64_t file_seek(URLContext *h, int64_t pos, int whence)
     FileContext *c = h->priv_data;
     int64_t ret;
 
-    if (whence == AVSEEK_SIZE) {
+    if (whence == AVSEEK_SIZE) {//自定义flag  产看文件大小
         struct stat st;
         ret = fstat(c->fd, &st);
         return ret < 0 ? AVERROR(errno) : (S_ISFIFO(st.st_mode) ? 0 : st.st_size);
     }
-
+    
     ret = lseek(c->fd, pos, whence);
 
     return ret < 0 ? AVERROR(errno) : ret;
@@ -304,7 +305,7 @@ static int file_open(URLContext *h, const char *filename, int flags)
     if (fd == -1)
         return AVERROR(errno);
     c->fd = fd;
-
+    //一般的媒体文件 都不是  fifo 文件 
     h->is_streamed = !fstat(fd, &st) && S_ISFIFO(st.st_mode);
 
     /* Buffer writes more than the default 32k to improve throughput especially

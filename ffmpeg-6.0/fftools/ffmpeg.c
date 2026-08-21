@@ -4218,24 +4218,18 @@ int main(int argc, char **argv){
 //    const AVOption *o;
 //    int ret;
 //    if (!ctx) return 1;
-////    /* 1. 按选项名 "idct" 查找（不是 idct_algo） */
-////    o = av_opt_find(ctx, "idct", NULL, AV_OPT_FLAG_ENCODING_PARAM, 0);
-////    printf("av_opt_find(\"idct\") -> %s offset=%td type=%d unit=%s\n",
-////           o ? o->name : "NULL", o ? (ptrdiff_t)o->offset : -1,
-////           o ? o->type : -1, o && o->unit ? o->unit : "(null)");
-////    /* 2. 字符串 "simple" → idct_algo */
-////    ret = av_opt_set(ctx, "idct", "simple", 0);
-////    printf("av_opt_set(idct,simple) ret=%d idct_algo=%d (expect 2)\n",
-////           ret, ctx->idct_algo);
-////    /* 3. 数字 */
-////    ret = av_opt_set(ctx, "idct", "2", 0);
-////    printf("av_opt_set(idct,2) ret=%d idct_algo=%d\n", ret, ctx->idct_algo);
-////    avcodec_free_context(&ctx);
-//    
-//    
-//    
-//
-//    
-//    
+//    /* 1. 按选项名 "idct" 查找（不是 idct_algo） */
+//    o = av_opt_find(ctx, "idct", NULL, AV_OPT_FLAG_ENCODING_PARAM, 0);
+//    printf("av_opt_find(\"idct\") -> %s offset=%td type=%d unit=%s\n",
+//           o ? o->name : "NULL", o ? (ptrdiff_t)o->offset : -1,
+//           o ? o->type : -1, o && o->unit ? o->unit : "(null)");
+//    /* 2. 字符串 "simple" → idct_algo */
+//    ret = av_opt_set(ctx, "idct", "simple", 0);
+//    printf("av_opt_set(idct,simple) ret=%d idct_algo=%d (expect 2)\n",
+//           ret, ctx->idct_algo);
+//    /* 3. 数字 */
+//    ret = av_opt_set(ctx, "idct", "2", 0);
+//    printf("av_opt_set(idct,2) ret=%d idct_algo=%d\n", ret, ctx->idct_algo);
+//    avcodec_free_context(&ctx);
 //    return 0;
 //}

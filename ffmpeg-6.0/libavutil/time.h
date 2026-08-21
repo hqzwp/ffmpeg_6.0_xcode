@@ -25,6 +25,7 @@
 
 /**
  * Get the current time in microseconds.
+ * 从 1900起的绝对时间
  */
 int64_t av_gettime(void);
 
@@ -34,6 +35,8 @@ int64_t av_gettime(void);
  * This property makes this time source ideal for measuring relative time.
  * The returned values may not be monotonic on platforms where a monotonic
  * clock is not available.
+ * 从 某未知起点 起的相对时间
+ * 微秒
  */
 int64_t av_gettime_relative(void);
 

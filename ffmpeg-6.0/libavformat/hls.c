@@ -96,35 +96,59 @@ enum PlaylistType {
  * Each playlist has its own demuxer. If it currently is active,
  * it has an open AVIOContext too, and potentially an AVPacket
  * containing the next packet from this stream.
+ 
+ hls_multi_playlist_example/
+ ├── master.m3u8                 ← 总表
+ ├── v720/playlist.m3u8          ← 720p 只有视频
+ ├── v1080/playlist.m3u8         ← 1080p 只有视频
+ ├── audio_zh/playlist.m3u8      ← 中文音轨
+ ├── audio_en/playlist.m3u8      ← 英文音轨
+ ├── subs_zh/playlist.m3u8       ← 中文字幕
+ 
+ master.m3u8 用 #EXT-X-MEDIA 挂外挂音轨/字幕，用 #EXT-X-STREAM-INF 挂两档视频。FFmpeg 会建成 5 个 playlist，hls_read_seek 那段双重循环就是在这些表里反查 stream_index。
+ .ts 只是占位，不能播。对照国内常见点播：只有一条 m3u8、每个 ts 里音视频已经复用，那种 n_playlists == 1。
+ 
  */
 struct playlist {
     char url[MAX_URL_SIZE];
     FFIOContext pb;
     uint8_t* read_buffer;
+    //正在读的这一段
     AVIOContext *input;
     int input_read_done;
+    
+    //提前打开的下一段
     AVIOContext *input_next;
     int input_next_requested;
+    
+    //hls对应的AVFormatContext
     AVFormatContext *parent;
     int index;
+    //seg.ts 对应的AVFormatContext
     AVFormatContext *ctx;
     AVPacket *pkt;
     int has_noheader_flag;
 
     /* main demuxer streams associated with this playlist
-     * indexed by the subdemuxer stream indexes */
+     * indexed by the subdemuxer stream indexes
+     ctx对应的n_streams
+     */
     AVStream **main_streams;
     int n_main_streams;
-
+    //#EXT-X-ENDLIST  没有这个标记就是直播
     int finished;
     enum PlaylistType type;
+    //#EXT-X-TARGETDURATION 声明"这个 Media Playlist 里任意一个分片时长的上限
     int64_t target_duration;
+    //#EXT-X-MEDIA-SEQUENCE:50
     int64_t start_seq_no;
     int time_offset_flag;
     int64_t start_time_offset;
     int n_segments;
     struct segment **segments;
+    //当前的playlist是否正在被使用
     int needed;
+    //当前playlist 坏了
     int broken;
     int64_t cur_seq_no;
     int64_t last_seq_no;
@@ -132,7 +156,9 @@ struct playlist {
     int64_t cur_seg_offset;
     int64_t last_load_time;
 
-    /* Currently active Media Initialization Section */
+    /* Currently active Media Initialization Section
+     init.mp4文件
+     */
     struct segment *cur_init_section;
     uint8_t *init_sec_buf;
     unsigned int init_sec_buf_size;
@@ -170,7 +196,7 @@ struct playlist {
     /* Media Initialization Sections (EXT-X-MAP) associated with this
      * playlist, if any. */
     int n_init_sections;
-    struct segment **init_sections;
+    struct segment **init_sections; //init.mp4
 };
 
 /*
@@ -178,6 +204,8 @@ struct playlist {
  * The rendition may either be an external playlist or it may be
  * contained in the main Media Playlist of the variant (in which case
  * playlist is NULL).
+  外挂
+ EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="中文",URI="audio_zh/playlist.m3u8"
  */
 struct rendition {
     enum AVMediaType type;
@@ -187,14 +215,16 @@ struct rendition {
     char name[MAX_FIELD_LEN];
     int disposition;
 };
-
+//用来声明"一档可选的码率/分辨率版本"
+//#EXT-X-STREAM-INF:BANDWIDTH=1200000,AVERAGE-BANDWIDTH=1000000,RESOLUTION=854x480,FRAME-RATE=30.000,CODECS="avc1.64001e,mp4a.40.2",AUDIO="aud",SUBTITLES="subs" video/480p.m3u8
+//之后会进入到子m3u8
 struct variant {
     int bandwidth;
 
     /* every variant contains at least the main Media Playlist in index 0 */
     int n_playlists;
     struct playlist **playlists;
-
+    //AUDIO="aac",SUBTITLES="subs" VIDEO="h264"
     char audio_group[MAX_FIELD_LEN];
     char video_group[MAX_FIELD_LEN];
     char subtitles_group[MAX_FIELD_LEN];
@@ -202,11 +232,46 @@ struct variant {
 
 typedef struct HLSContext {
     AVClass *class;
+    //最上层的AVFormatContext 
     AVFormatContext *ctx;
+    
+    /*
+     hls_multi_playlist_example/
+     ├── master.m3u8                 ← 总表
+     ├── v720/playlist.m3u8          ← 720p 只有视频
+     ├── v1080/playlist.m3u8         ← 1080p 只有视频
+     ├── audio_zh/playlist.m3u8      ← 中文音轨
+     ├── audio_en/playlist.m3u8      ← 英文音轨
+     ├── subs_zh/playlist.m3u8       ← 中文字幕
+     此时会有五个 playlist
+     
+     
+     
+     --master.m3u8
+     ren
+     #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="中文",URI="audio_zh/playlist.m3u8"
+     #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="English",URI="audio_en/playlist.m3u8"
+     #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",...,URI="subs_zh/playlist.m3u8"
+     
+     var
+     #EXT-X-STREAM-INF:...,AUDIO="aac",SUBTITLES="subs"
+     v720/playlist.m3u8
+     #EXT-X-STREAM-INF:...,AUDIO="aac",SUBTITLES="subs"
+     v1080/playlist.m3u8
+     
+     STREAM-INF → variant，只记下 audio_group = "aac"、subtitles_group = "subs"，var->playlists 里暂时只有视频那一份
+     EXT-X-MEDIA → 放进 c->renditions[]，各自可能已有 playlist
+     
+     */
+    
+    //变体的playlist 包含两个720/1080 playlist  有playlist 就至少有一个var
     int n_variants;
     struct variant **variants;
+    
+    //所有的playlist  包括外挂 不同分辨率
     int n_playlists;
     struct playlist **playlists;
+    //外挂 audio_zh   audio_ch subs_zh 3个playlist
     int n_renditions;
     struct rendition **renditions;
 
@@ -801,11 +866,15 @@ static int parse_playlist(HLSContext *c, const char *url,
     while (!avio_feof(in)) {
         ff_get_chomp_line(in, line, sizeof(line));
         if (av_strstart(line, "#EXT-X-STREAM-INF:", &ptr)) {
+            //用来声明"一档可选的码率/分辨率版本"
+            //#EXT-X-STREAM-INF:BANDWIDTH=1200000,AVERAGE-BANDWIDTH=1000000,RESOLUTION=854x480,FRAME-RATE=30.000,CODECS="avc1.64001e,mp4a.40.2",AUDIO="aud",SUBTITLES="subs" video/480p.m3u8
+            //之后会进入到子m3u8
             is_variant = 1;
             memset(&variant_info, 0, sizeof(variant_info));
             ff_parse_key_value(ptr, (ff_parse_key_val_cb) handle_variant_args,
                                &variant_info);
         } else if (av_strstart(line, "#EXT-X-KEY:", &ptr)) {
+            //#EXT-X-KEY 用来声明"从这一行开始、直到下一个 #EXT-X-KEY 出现之前,后面所有分片(以及 #EXT-X-MAP 初始化段)用什么方式加密"。
             struct key_info info = {{0}};
             ff_parse_key_value(ptr, (ff_parse_key_val_cb) handle_key_args,
                                &info);
@@ -821,11 +890,13 @@ static int parse_playlist(HLSContext *c, const char *url,
             }
             av_strlcpy(key, info.uri, sizeof(key));
         } else if (av_strstart(line, "#EXT-X-MEDIA:", &ptr)) {
+            //外挂流
             struct rendition_info info = {{0}};
             ff_parse_key_value(ptr, (ff_parse_key_val_cb) handle_rendition_args,
                                &info);
             new_rendition(c, &info, url);
         } else if (av_strstart(line, "#EXT-X-TARGETDURATION:", &ptr)) {
+            //#EXT-X-TARGETDURATION 声明"这个 Media Playlist 里任意一个分片时长的上限"
             int64_t t;
             ret = ensure_playlist(c, &pls, url);
             if (ret < 0)
@@ -837,6 +908,7 @@ static int parse_playlist(HLSContext *c, const char *url,
             }
             pls->target_duration = t * AV_TIME_BASE;
         } else if (av_strstart(line, "#EXT-X-MEDIA-SEQUENCE:", &ptr)) {
+            //#EXT-X-MEDIA-SEQUENCE 声明"这份 m3u8 第一个分片的绝对序号是多少"  前提是在直播时(#EXT-X-ENDLIST 无)
             uint64_t seq_no;
             ret = ensure_playlist(c, &pls, url);
             if (ret < 0)
@@ -849,6 +921,7 @@ static int parse_playlist(HLSContext *c, const char *url,
             }
             pls->start_seq_no = seq_no;
         } else if (av_strstart(line, "#EXT-X-PLAYLIST-TYPE:", &ptr)) {
+            // 是一个"声明未来变化规则"的标签,EVENT 表示"只增不减" ,VOD 表示"完全静态"
             ret = ensure_playlist(c, &pls, url);
             if (ret < 0)
                 goto fail;
@@ -857,6 +930,7 @@ static int parse_playlist(HLSContext *c, const char *url,
             else if (!strcmp(ptr, "VOD"))
                 pls->type = PLS_TYPE_VOD;
         } else if (av_strstart(line, "#EXT-X-MAP:", &ptr)) {
+            //fnp4 中的init.mp4
             struct init_section_info info = {{0}};
             ret = ensure_playlist(c, &pls, url);
             if (ret < 0)
@@ -895,6 +969,7 @@ static int parse_playlist(HLSContext *c, const char *url,
             }
 
         } else if (av_strstart(line, "#EXT-X-START:", &ptr)) {
+            //#EXT-X-START 是一个**"建议的起播位置"**标签，主要用在直播（Live）场景，告诉播放器"如果你现在要开始播放这个 Playlist，建议从哪个时间点起播"，而不是简单地从第一个分片
             const char *time_offset_value = NULL;
             ret = ensure_playlist(c, &pls, url);
             if (ret < 0) {
@@ -910,17 +985,25 @@ static int parse_playlist(HLSContext *c, const char *url,
                 continue;
             }
         } else if (av_strstart(line, "#EXT-X-ENDLIST", &ptr)) {
+            //playlist结束
             if (pls)
                 pls->finished = 1;
         } else if (av_strstart(line, "#EXTINF:", &ptr)) {
+            /*
+             #EXTINF:6.166667,
+             m0.ts   //segment
+             */
             is_segment = 1;
             duration   = atof(ptr) * AV_TIME_BASE;
         } else if (av_strstart(line, "#EXT-X-BYTERANGE:", &ptr)) {
+            //#EXT-X-BYTERANGE 的作用是：让多个"逻辑分片"共享同一个物理文件，每个分片只是这个文件里的一段字节区间
+            //#EXT-X-BYTERANGE:<n>[@<o>]
             seg_size = strtoll(ptr, NULL, 10);
             ptr = strchr(ptr, '@');
             if (ptr)
                 seg_offset = strtoll(ptr+1, NULL, 10);
         } else if (av_strstart(line, "#", NULL)) {
+            //除了上面的标签  其他略过
             av_log(c->ctx, AV_LOG_INFO, "Skip ('%s')\n", line);
             continue;
         } else if (line[0]) {
@@ -1006,6 +1089,7 @@ static int parse_playlist(HLSContext *c, const char *url,
             }
         }
     }
+    //释放之前的 segs
     if (prev_segments) {
         if (pls->start_seq_no > prev_start_seq_no && c->first_timestamp != AV_NOPTS_VALUE) {
             int64_t prev_timestamp = c->first_timestamp;
@@ -1278,7 +1362,7 @@ static int open_input(HLSContext *c, struct playlist *pls, struct segment *seg, 
     AVDictionary *opts = NULL;
     int ret;
     int is_http = 0;
-
+    //Connection: keep-alive
     if (c->http_persistent)
         av_dict_set(&opts, "multiple_requests", "1", 0);
 
@@ -1355,7 +1439,7 @@ cleanup:
     pls->cur_seg_offset = 0;
     return ret;
 }
-
+//初始化段（fMP4 的 init.mp4）
 static int update_init_section(struct playlist *pls, struct segment *seg)
 {
     static const int max_init_section_size = 1024*1024;
@@ -1494,15 +1578,19 @@ restart:
         }
 
         /* If this is a live stream and the reload interval has elapsed since
-         * the last playlist reload, reload the playlists now. */
+         * the last playlist reload, reload the playlists now.
+         直播定期刷新
+         */
         reload_interval = default_reload_interval(v);
 
 reload:
         reload_count++;
         if (reload_count > c->max_reload)
             return AVERROR_EOF;
+        //直播
         if (!v->finished &&
             av_gettime_relative() - v->last_load_time >= reload_interval) {
+            //这里打开一个新的io
             if ((ret = parse_playlist(c, v->url, v, NULL)) < 0) {
                 if (ret != AVERROR_EXIT)
                     av_log(v->parent, AV_LOG_WARNING, "Failed to reload playlist %d\n",
@@ -1542,7 +1630,7 @@ reload:
             /* Enough time has elapsed since the last reload */
             goto reload;
         }
-
+        //开始读ts切片
         v->input_read_done = 0;
         seg = current_segment(v);
 
@@ -1552,6 +1640,7 @@ reload:
             return ret;
 
         if (c->http_multiple == 1 && v->input_next_requested) {
+            //上一轮已经对 下一段 调过 open_input(&input_next)
             FFSWAP(AVIOContext *, v->input, v->input_next);
             v->cur_seg_offset = 0;
             v->input_next_requested = 0;
@@ -1603,7 +1692,7 @@ reload:
             v->input_next_requested = 1;
         }
     }
-
+    //优先读取init.mp4文件
     if (v->init_sec_buf_read_offset < v->init_sec_data_len) {
         /* Push init section out first before first actual segment */
         int copy_size = FFMIN(v->init_sec_data_len - v->init_sec_buf_read_offset, buf_size);
@@ -1614,6 +1703,7 @@ reload:
 
     seg = current_segment(v);
     ret = read_from_url(v, seg, buf, buf_size);
+    //这里只要读到数据就返回
     if (ret > 0) {
         if (just_opened && v->is_id3_timestamped != 0) {
             /* Intercept ID3 tags here, elementary audio streams are required
@@ -1623,10 +1713,13 @@ reload:
 
         return ret;
     }
+    
     if (c->http_persistent &&
         seg->key_type == KEY_NONE && av_strstart(seg->url, "http", NULL)) {
         v->input_read_done = 1;
+        //http不用关闭 走http keepalive
     } else {
+        //能走到这里，当前这个 segment 在逻辑上已经结束了：关闭input
         ff_format_io_close(v->parent, &v->input);
     }
     v->cur_seq_no++;
@@ -1972,7 +2065,7 @@ static int hls_read_header(AVFormatContext *s)
             }
         }
     }
-
+    //每一档码率的主 m3u8 里有没有分片。没有就把这档标成坏的，整次打开还不失
     for (i = 0; i < c->n_variants; i++) {
         if (c->variants[i]->playlists[0]->n_segments == 0) {
             av_log(s, AV_LOG_WARNING, "Empty segment [%s]\n", c->variants[i]->playlists[0]->url);
@@ -1989,7 +2082,9 @@ static int hls_read_header(AVFormatContext *s)
         s->duration = duration;
     }
 
-    /* Associate renditions with variants */
+    /* Associate renditions with variants
+     不同分辨率视频需要关联跟他相关的外挂流
+     */
     for (i = 0; i < c->n_variants; i++) {
         struct variant *var = c->variants[i];
 
@@ -2001,7 +2096,9 @@ static int hls_read_header(AVFormatContext *s)
             add_renditions_to_variant(c, var, AVMEDIA_TYPE_SUBTITLE, var->subtitles_group);
     }
 
-    /* Create a program for each variant */
+    /* Create a program for each variant
+     hls对应的AVFormatContext的AVProgram 就是hls中的variant
+     */
     for (i = 0; i < c->n_variants; i++) {
         struct variant *v = c->variants[i];
         AVProgram *program;
@@ -2331,10 +2428,10 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
                     memcpy(c->crypto_ctx.key, pls->key, sizeof(pls->key));
                     ff_hls_senc_decrypt_frame(codec_id, &c->crypto_ctx, pls->pkt);
                 }
-
+                //没有seek时 督办成功 直接退出
                 if (pls->seek_timestamp == AV_NOPTS_VALUE)
                     break;
-
+                //seek后read packet
                 if (pls->seek_stream_index < 0 ||
                     pls->seek_stream_index == pls->pkt->stream_index) {
 
@@ -2347,6 +2444,7 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
                     ts_diff = av_rescale_rnd(pls->pkt->dts, AV_TIME_BASE,
                                             tb.den, AV_ROUND_DOWN) -
                             pls->seek_timestamp;
+                    //FIX::  大于seek 时间才能退出 否则丢弃  这可能是个bug 因为一般的ts文件开头是一个关键帧 seek到关键帧之后 再往后找 会找不到关键帧
                     if (ts_diff >= 0 && (pls->seek_flags  & AVSEEK_FLAG_ANY ||
                                         pls->pkt->flags & AV_PKT_FLAG_KEY)) {
                         pls->seek_timestamp = AV_NOPTS_VALUE;
@@ -2378,7 +2476,7 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
         struct playlist *pls = c->playlists[minplaylist];
         AVStream *ist;
         AVStream *st;
-
+        //子demiuxer中有的流可能还没有对齐
         ret = update_streams_from_subdemuxer(s, pls);
         if (ret < 0) {
             av_packet_unref(pls->pkt);
@@ -2585,3 +2683,102 @@ const AVInputFormat ff_hls_demuxer = {
     .read_close     = hls_close,
     .read_seek      = hls_read_seek,
 };
+/*
+ #EXTM3U             m3u8 文件头
+ #EXT-X-VERSION      HLS 版本
+ #EXTINF             Segment 时长
+ #EXT-X-TARGETDURATION Segment 目标最大时长
+ #EXT-X-MEDIA-SEQUENCE Segment 序号起点
+ #EXT-X-ENDLIST        Playlist 结束
+ #EXT-X-STREAM-INF     Variant 信息
+ #EXT-X-MEDIA          音频/字幕等媒体轨道
+ #EXT-X-MAP            fMP4 初始化文件
+ #EXT-X-KEY            加密信息
+ #EXT-X-DISCONTINUITY  时间/媒体流不连续
+ #EXT-X-PROGRAM-DATE-TIME 真实时间
+ #EXT-X-PART           LL-HLS 的 Partial Segment
+ #EXT-X-PRELOAD-HINT   LL-HLS 下一 Part 提示
+
+ 
+ #EXT-X-BYTERANGE:<n>[@<o>]
+ <n>：这个分片的字节长度
+ <o>（可选）：这个分片在资源文件里的起始字节偏移
+ 如果省略 <o>，代表这个分片紧接着上一个分片（必须是同一个 URI 的上一个分片）结束的地方开始——也就是"续着上一段接着切"
+ 典型用法（一个 video.ts 文件被切成 3 段）：
+
+
+ #EXTM3U
+ #EXT-X-VERSION:4
+ #EXT-X-TARGETDURATION:10
+ #EXT-X-MEDIA-SEQUENCE:0
+ #EXT-X-BYTERANGE:1000000@0
+ #EXTINF:10.0,
+ video.ts
+ #EXT-X-BYTERANGE:1500000
+ #EXTINF:10.0,
+ video.ts
+ #EXT-X-BYTERANGE:1200000
+ #EXTINF:8.0,
+ video.ts
+ #EXT-X-ENDLIST
+ 
+ FMP4
+ init
+ ┌──────────────┐
+ │ moov         │
+ └──────────────┘
+ fragment 1
+ ┌──────────────┐
+ │ moof         │
+ │ mdat         │
+ └──────────────┘
+ fragment 2
+ ┌──────────────┐
+ │ moof         │
+ │ mdat         │
+ └──────────────┘
+ fragment 3
+ ┌──────────────┐
+ │ moof         │
+ │ mdat         │
+ └──────────────┘
+ #EXT-X-MAP:URI="init.mp4"
+ #EXTINF:6,
+ segment001.m4s
+ #EXTINF:6,
+ segment002.m4s
+ #EXTINF:6
+ segment003.m4s
+ init.mp4 里面有没有视频画面？  通常没有真正的媒体 sample。
+ 而真正的视频数据在：
+ segment001.m4s
+ segment002.m4s
+ 
+ 
+ moof 是什么？
+ Movie Fragment 这是理解 m4s 的核心。
+ 这个 fragment 里面有哪些 sample，以及这些 sample 怎么解释  mdat 里的这些 bytes，应该怎样解释成一个个 sample。
+ 
+ moof
+ │
+ ├── mfhd
+ │
+ └── traf
+     │
+     ├── tfhd
+     ├── tfdt
+     └── trun
+ 
+ mfhd
+  ↓
+ fragment number
+ tfhd
+  ↓
+ track information
+ tfdt
+  ↓
+ decode time
+ trun
+  ↓
+ sample information
+ */

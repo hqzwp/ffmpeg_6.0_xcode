@@ -43,6 +43,7 @@
 #include "libavutil/samplefmt.h"
 #include "libavutil/time.h"
 #include "libavutil/bprint.h"
+#include "libavutil/file.h"
 #include "libavformat/avformat.h"
 #include "libavdevice/avdevice.h"
 #include "libswscale/swscale.h"
@@ -122,6 +123,7 @@ typedef struct PacketQueue {
     int size;
     int64_t duration;
     int abort_request;
+    //当前这一代队列的版本号（最新串）
     int serial;
     SDL_mutex *mutex;
     SDL_cond *cond;
@@ -168,11 +170,15 @@ typedef struct Frame {
 
 typedef struct FrameQueue {
     Frame queue[FRAME_QUEUE_SIZE];
+    //读指针
     int rindex;
+    //写指针
     int windex;
     int size;
     int max_size;
+    //切换到下一帧时，不要把当前正在显示的那一帧立刻从队列里扔掉
     int keep_last;
+    //第一桢是否已经显示
     int rindex_shown;
     SDL_mutex *mutex;
     SDL_cond *cond;
@@ -186,6 +192,7 @@ enum {
 };
 
 typedef struct Decoder {
+    //解码器当前正在处理的那一个压缩包，在「从队列取出 → 送给解码器」之间当临时容器用。
     AVPacket *pkt;
     PacketQueue *queue;
     AVCodecContext *avctx;
@@ -234,9 +241,19 @@ typedef struct VideoState {
 
     double audio_clock;
     int audio_clock_serial;
+    //通过audio_diff_avg_coef 计算多次误差的积累值
     double audio_diff_cum; /* used for AV difference average computation */
+    /*
+     指数衰减系数      越新的误差影响越大。     越旧的误差影响会按 0.794、0.794²、0.794³……逐渐减小。     大约经过 20 次更新后，最早那次误差的权重只剩约 1%，因此可以认为几乎被“遗忘”。
+     
+     经过20次衰减以后，只剩下原来的1%（0.01)
+     第一次 1 × 0.794 = 0.794
+     第二次 0.794 × 0.794 = 0.631
+     20次：0.794^20 ≈ 0.01
+     */
     double audio_diff_avg_coef;
     double audio_diff_threshold;
+    //误差的累计次数  （最多 20）
     int audio_diff_avg_count;
     AVStream *audio_st;
     PacketQueue audioq;
@@ -249,10 +266,12 @@ typedef struct VideoState {
     int audio_write_buf_size;
     int audio_volume;
     int muted;
+    //
     struct AudioParams audio_src;
 #if CONFIG_AVFILTER
     struct AudioParams audio_filter_src;
 #endif
+    //最终跟sdl 音频设备的输出格式对齐  也是就是swr的输出格式
     struct AudioParams audio_tgt;
     struct SwrContext *swr_ctx;
     int frame_drops_early;
@@ -352,6 +371,7 @@ static const char **vfilters_list = NULL;
 static int nb_vfilters = 0;
 static char *afilters = NULL;
 #endif
+//是否根据文件里的旋转元数据，自动把画面转成正的。
 static int autorotate = 1;
 static int find_stream_info = 1;
 static int filter_nbthreads = 0;
@@ -628,7 +648,7 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
                 int old_serial = d->pkt_serial;
                 if (packet_queue_get(d->queue, d->pkt, 1, &d->pkt_serial) < 0)
                     return -1;
-                if (old_serial != d->pkt_serial) {
+                if (old_serial != d->pkt_serial) {//下一批
                     avcodec_flush_buffers(d->avctx);
                     d->finished = 0;
                     d->next_pts = d->start_pts;
@@ -654,6 +674,7 @@ static int decoder_decode_frame(Decoder *d, AVFrame *frame, AVSubtitle *sub) {
             av_packet_unref(d->pkt);
         } else {
             if (avcodec_send_packet(d->avctx, d->pkt) == AVERROR(EAGAIN)) {
+                //d->pkt 没有被解码器收下 需要下一次avcodec_receive_frame后继续avcodec_send_packet
                 av_log(d->avctx, AV_LOG_ERROR, "Receive_frame and send_packet both returned EAGAIN, which is an API violation.\n");
                 d->packet_pending = 1;
             } else {
@@ -819,7 +840,7 @@ static inline void fill_rectangle(int x, int y, int w, int h)
     rect.w = w;
     rect.h = h;
     if (w && h)
-        SDL_RenderFillRect(renderer, &rect);
+        SDL_RenderFillRect(renderer, &rect);//画实心矩形（颜色由之前 SDL_SetRenderDrawColor 决定）
 }
 
 static int realloc_texture(SDL_Texture **texture, Uint32 new_format, int new_width, int new_height, SDL_BlendMode blendmode, int init_texture)
@@ -923,8 +944,8 @@ static int upload_texture(SDL_Texture **tex, AVFrame *frame, struct SwsContext *
                                                        frame->data[1], frame->linesize[1],
                                                        frame->data[2], frame->linesize[2]);
             } else if (frame->linesize[0] < 0 && frame->linesize[1] < 0 && frame->linesize[2] < 0) {
-                ret = SDL_UpdateYUVTexture(*tex, NULL, frame->data[0] + frame->linesize[0] * (frame->height                    - 1), -frame->linesize[0],
-                                                       frame->data[1] + frame->linesize[1] * (AV_CEIL_RSHIFT(frame->height, 1) - 1), -frame->linesize[1],
+               ret = SDL_UpdateYUVTexture(*tex, NULL, frame->data[0] + frame->linesize[0] * (frame->height                    - 1), -frame->linesize[0],
+                                                        frame->data[1] + frame->linesize[1] * (AV_CEIL_RSHIFT(frame->height, 1) - 1), -frame->linesize[1],
                                                        frame->data[2] + frame->linesize[2] * (AV_CEIL_RSHIFT(frame->height, 1) - 1), -frame->linesize[2]);
             } else {
                 av_log(NULL, AV_LOG_ERROR, "Mixed negative and positive linesizes are not supported.\n");
@@ -1042,7 +1063,7 @@ static void video_image_display(VideoState *is)
 #endif
     }
 }
-
+//环型缓冲下标运算用的安全取模，负数也能得到 0 ~ b-1 的有效索引。
 static inline int compute_mod(int a, int b)
 {
     return a < 0 ? a%b + b : a%b;
@@ -1054,7 +1075,8 @@ static void video_audio_display(VideoState *s)
     int ch, channels, h, h2;
     int64_t time_diff;
     int rdft_bits, nb_freq;
-
+    //N 个输入算出来的频谱里，大约一半是唯一信息，另一半是重复的
+    // nb_freq 是输出侧有多少个频率档位。  2 × nb_freq 是RDFT的输入点数
     for (rdft_bits = 1; (1 << rdft_bits) < 2 * s->height; rdft_bits++)
         ;
     nb_freq = 1 << (rdft_bits - 1);
@@ -1106,7 +1128,7 @@ static void video_audio_display(VideoState *s)
 
         /* total height for one channel */
         h = s->height / nb_display_channels;
-        /* graph height / 2 */
+        /* graph height / 2 这里绘制上下两个声道   */
         h2 = (h * 9) / 20;
         for (ch = 0; ch < nb_display_channels; ch++) {
             i = i_start + ch;
@@ -1119,6 +1141,7 @@ static void video_audio_display(VideoState *s)
                 } else {
                     ys = y1;
                 }
+                //按照屏幕的宽 绘制小矩形
                 fill_rectangle(s->xleft + x, ys, 1, y);
                 i += channels;
                 if (i >= SAMPLE_ARRAY_SIZE)
@@ -1133,6 +1156,18 @@ static void video_audio_display(VideoState *s)
             fill_rectangle(s->xleft, y, s->width, 1);
         }
     } else {
+        /*
+         R、G、B 三个分量都越大，像素看起来越亮。
+         (255,0,0) 很亮的红
+         (50,0,0)  很暗的红
+         
+         某频率左声道强、右弱 → 偏红
+         右强、左弱 → 偏绿
+         两边都强 → 红+绿+蓝都大 → 更亮、偏白/黄
+         亮度 ≈ 能量大小；色调大致反映左右平衡。
+
+         一句话：不是语义上的「某种颜色含义」，就是用红/绿表示左右声道该频率有多强，蓝补个平均，方便一眼看出频谱强度和左右差异。
+         */
         if (realloc_texture(&s->vis_texture, SDL_PIXELFORMAT_ARGB8888, s->width, s->height, SDL_BLENDMODE_NONE, 1) < 0)
             return;
 
@@ -1151,6 +1186,7 @@ static void video_audio_display(VideoState *s)
             s->show_mode = SHOW_MODE_WAVES;
         } else {
             FFTSample *data[2];
+            //每次绘制一个像素宽度的矩形  向右滚动
             SDL_Rect rect = {.x = s->xpos, .y = 0, .w = 1, .h = s->height};
             uint32_t *pixels;
             int pitch;
@@ -1169,17 +1205,24 @@ static void video_audio_display(VideoState *s)
             /* Least efficient way to do this, we should of course
              * directly access it but it is more than fast enough. */
             if (!SDL_LockTexture(s->vis_texture, &rect, (void **)&pixels, &pitch)) {
+                //除4是 每个像素4个字节
                 pitch >>= 2;
+                //从下往上绘制
                 pixels += pitch * s->height;
                 for (y = 0; y < s->height; y++) {
                     double w = 1 / sqrt(nb_freq);
+                    //声道0  那这里就应该算的是 当前频率点对应的波的振幅  
                     int a = sqrt(w * sqrt(data[0][2 * y + 0] * data[0][2 * y + 0] + data[0][2 * y + 1] * data[0][2 * y + 1]));
+                    //声道1 
                     int b = (nb_display_channels == 2 ) ? sqrt(w * hypot(data[1][2 * y + 0], data[1][2 * y + 1]))
                                                         : a;
                     a = FFMIN(a, 255);
                     b = FFMIN(b, 255);
+                    //逐步向上绘制  
                     pixels -= pitch;
+                    //BLENDMODE_NONE 无透明度
                     *pixels = (a << 16) + (b << 8) + ((a+b) >> 1);
+                    //         红=声道0     绿=声道1     蓝=平均
                 }
                 SDL_UnlockTexture(s->vis_texture);
             }
@@ -1369,7 +1412,7 @@ static double get_clock(Clock *c)
     } else {
         double time = av_gettime_relative() / 1000000.0;
         return c->pts_drift + time - (time - c->last_updated) * (1.0 - c->speed);
-    }
+    }//(pts - last_updated + time)(距离上一次时间增量) + (time - last_updated) * (speed - 1.0);
 }
 
 static void set_clock_at(Clock *c, double pts, int serial, double time)
@@ -1399,7 +1442,7 @@ static void init_clock(Clock *c, int *queue_serial)
     c->queue_serial = queue_serial;
     set_clock(c, NAN, -1);
 }
-
+//把slave的时间同步到c上
 static void sync_clock_to_slave(Clock *c, Clock *slave)
 {
     double clock = get_clock(c);
@@ -1444,8 +1487,8 @@ static double get_master_clock(VideoState *is)
 }
 
 static void check_external_clock_speed(VideoState *is) {
-   if (is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES ||
-       is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES) {
+   if ((is->video_stream >= 0 && is->videoq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES )||
+       (is->audio_stream >= 0 && is->audioq.nb_packets <= EXTERNAL_CLOCK_MIN_FRAMES)) {
        set_clock_speed(&is->extclk, FFMAX(EXTERNAL_CLOCK_SPEED_MIN, is->extclk.speed - EXTERNAL_CLOCK_SPEED_STEP));
    } else if ((is->video_stream < 0 || is->videoq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES) &&
               (is->audio_stream < 0 || is->audioq.nb_packets > EXTERNAL_CLOCK_MAX_FRAMES)) {
@@ -1534,10 +1577,9 @@ static double compute_target_delay(double delay, VideoState *is)
                 delay = 2 * delay;
         }
     }
-
-    av_log(NULL, AV_LOG_TRACE, "video: delay=%0.3f A-V=%f\n",
-            delay, -diff);
-
+    //这里的 delay 是：当前画面还要再亮多久 / 多久后换下一帧 ，即 延迟多久后换下一帧 
+    // A-V  audio-video 不同步的程度
+    av_log(NULL, AV_LOG_TRACE, "video: delay=%0.3f A-V=%f\n",delay, -diff);
     return delay;
 }
 
@@ -1571,6 +1613,7 @@ static void video_refresh(void *opaque, double *remaining_time)
         check_external_clock_speed(is);
 
     if (!display_disable && is->show_mode != SHOW_MODE_VIDEO && is->audio_st) {
+        //波形/频谱  此时不存在同步
         time = av_gettime_relative() / 1000000.0;
         if (is->force_refresh || is->last_vis_time + rdftspeed < time) {
             video_display(is);
@@ -1587,15 +1630,16 @@ retry:
             double last_duration, duration, delay;
             Frame *vp, *lastvp;
 
-            /* dequeue the picture */
+            /*当前桢正在显示的桢 */
             lastvp = frame_queue_peek_last(&is->pictq);
+            //即将显示桢
             vp = frame_queue_peek(&is->pictq);
-
+            //此时vp 一定是旧串中的 所以丢弃
             if (vp->serial != is->videoq.serial) {
                 frame_queue_next(&is->pictq);
                 goto retry;
             }
-
+            //此时vp 一定是新串种的 lastvp是旧串中的 显示vp
             if (lastvp->serial != vp->serial)
                 is->frame_timer = av_gettime_relative() / 1000000.0;
 
@@ -1607,6 +1651,7 @@ retry:
             delay = compute_target_delay(last_duration, is);
 
             time= av_gettime_relative()/1000000.0;
+            //当前显示的桢 还没到结束时间 继续绘制lastvp
             if (time < is->frame_timer + delay) {
                 *remaining_time = FFMIN(is->frame_timer + delay - time, *remaining_time);
                 goto display;
@@ -1664,7 +1709,7 @@ retry:
                     }
                 }
             }
-
+            //是正常换帧：到点了，把 vp 推进成当前显示帧，并标记需要重画。
             frame_queue_next(&is->pictq);
             is->force_refresh = 1;
 
@@ -1702,7 +1747,9 @@ display:
                 av_diff = get_master_clock(is) - get_clock(&is->vidclk);
             else if (is->audio_st)
                 av_diff = get_master_clock(is) - get_clock(&is->audclk);
-
+            //\r 只把光标拉回同一行开头，下一次打印就盖住上一行，看起来像状态条在原地刷新。
+            //退出时 do_exit 里会再 printf("\n")，把光标挪到下一行，避免 shell 提示粘在半行状态上。
+            //Xcode 的调试控制台不是完整终端，对 \r 的处理和 iTerm/Terminal 不一样。
             av_bprint_init(&buf, 0, AV_BPRINT_SIZE_AUTOMATIC);
             av_bprintf(&buf,
                       "%7.2f %s:%7.3f fd=%4d aq=%5dKB vq=%5dKB sq=%5dB f=%"PRId64"/%"PRId64"   \r",
@@ -1799,6 +1846,7 @@ static int configure_filtergraph(AVFilterGraph *graph, const char *filtergraph,
 {
     int ret, i;
     int nb_filters = graph->nb_filters;
+    //AVFilterInOut 只是 parse 时的 临时连接描述，config 完就释放。
     AVFilterInOut *outputs = NULL, *inputs = NULL;
 
     if (filtergraph) {
@@ -1822,6 +1870,7 @@ static int configure_filtergraph(AVFilterGraph *graph, const char *filtergraph,
         if ((ret = avfilter_graph_parse_ptr(graph, filtergraph, &inputs, &outputs, NULL)) < 0)
             goto fail;
     } else {
+        //用户没有指定的 -vf / -af 滤镜字符串
         if ((ret = avfilter_link(source_ctx, 0, sink_ctx, 0)) < 0)
             goto fail;
     }
@@ -1978,7 +2027,7 @@ static int configure_audio_filters(VideoState *is, const char *afilters, int for
                    "sample_rate=%d:sample_fmt=%s:time_base=%d/%d:channel_layout=%s",
                    is->audio_filter_src.freq, av_get_sample_fmt_name(is->audio_filter_src.fmt),
                    1, is->audio_filter_src.freq, bp.str);
-
+    
     ret = avfilter_graph_create_filter(&filt_asrc,
                                        avfilter_get_by_name("abuffer"), "ffplay_abuffer",
                                        asrc_args, NULL, is->agraph);
@@ -1991,14 +2040,17 @@ static int configure_audio_filters(VideoState *is, const char *afilters, int for
                                        NULL, NULL, is->agraph);
     if (ret < 0)
         goto end;
-
+    //设置成默认的
     if ((ret = av_opt_set_int_list(filt_asink, "sample_fmts", sample_fmts,  AV_SAMPLE_FMT_NONE, AV_OPT_SEARCH_CHILDREN)) < 0)
         goto end;
+    //接受 任意声道数（1ch、2ch、6ch… 都行）
     if ((ret = av_opt_set_int(filt_asink, "all_channel_counts", 1, AV_OPT_SEARCH_CHILDREN)) < 0)
         goto end;
 
     if (force_output_format) {
+        //这里直接设置audio_tgt 在播放时 就不用重采样了
         sample_rates   [0] = is->audio_tgt.freq;
+        //必须匹配 ch_layouts 里列出的布局
         if ((ret = av_opt_set_int(filt_asink, "all_channel_counts", 0, AV_OPT_SEARCH_CHILDREN)) < 0)
             goto end;
         if ((ret = av_opt_set(filt_asink, "ch_layouts", bp.str, AV_OPT_SEARCH_CHILDREN)) < 0)
@@ -2153,7 +2205,9 @@ static int video_thread(void *arg)
         if (   last_w != frame->width
             || last_h != frame->height
             || last_format != frame->format
+            //旧滤镜图里可能还留着 seek 前的帧/状态，和新时间线混在一起。 必须 avfilter_graph_free 重建，清掉内部缓冲，从新 serial 的帧重新开始
             || last_serial != is->viddec.pkt_serial
+            //切换了滤镜
             || last_vfilter_idx != is->vfilter_idx) {
             av_log(NULL, AV_LOG_DEBUG,
                    "Video frame changed from size:%dx%d format:%s serial:%d to size:%dx%d format:%s serial:%d\n",
@@ -2293,14 +2347,15 @@ static int synchronize_audio(VideoState *is, int nb_samples)
         diff = get_clock(&is->audclk) - get_master_clock(is);
 
         if (!isnan(diff) && fabs(diff) < AV_NOSYNC_THRESHOLD) {
+            //越新的误差权重越大，越旧的误差权重指数衰减
             is->audio_diff_cum = diff + is->audio_diff_avg_coef * is->audio_diff_cum;
             if (is->audio_diff_avg_count < AUDIO_DIFF_AVG_NB) {
                 /* not enough measures to have a correct estimate */
                 is->audio_diff_avg_count++;
             } else {
-                /* estimate the A-V difference */
+                /* estimate the A-V difference  EMA = Exponential Moving Average（指数移动平均） */
                 avg_diff = is->audio_diff_cum * (1.0 - is->audio_diff_avg_coef);
-
+                //超过某个阈值就开始调整
                 if (fabs(avg_diff) >= is->audio_diff_threshold) {
                     wanted_nb_samples = nb_samples + (int)(diff * is->audio_src.freq);
                     min_nb_samples = ((nb_samples * (100 - SAMPLE_CORRECTION_PERCENT_MAX) / 100));
@@ -2341,6 +2396,9 @@ static int audio_decode_frame(VideoState *is)
 
     do {
 #if defined(_WIN32)
+        //Windows 上在回调里 长时间 CondWait 容易：
+        //音频驱动 卡顿/死锁
+        //回调超时 → underrun
         while (frame_queue_nb_remaining(&is->sampq) == 0) {
             if ((av_gettime_relative() - audio_callback_time) > 1000000LL * is->audio_hw_buf_size / is->audio_tgt.bytes_per_sec / 2)
                 return -1;
@@ -2375,6 +2433,7 @@ static int audio_decode_frame(VideoState *is)
             swr_free(&is->swr_ctx);
             return -1;
         }
+        //拷贝af的格式到audio_src
         if (av_channel_layout_copy(&is->audio_src.ch_layout, &af->frame->ch_layout) < 0)
             return -1;
         is->audio_src.freq = af->frame->sample_rate;
@@ -2425,15 +2484,15 @@ static int audio_decode_frame(VideoState *is)
     else
         is->audio_clock = NAN;
     is->audio_clock_serial = af->serial;
-#ifdef DEBUG
-    {
-        static double last_clock;
-        printf("audio: delay=%0.3f clock=%0.3f clock0=%0.3f\n",
-               is->audio_clock - last_clock,
-               is->audio_clock, audio_clock0);
-        last_clock = is->audio_clock;
-    }
-#endif
+//#ifdef DEBUG
+//    {
+//        static double last_clock;
+//        printf("audio: delay=%0.3f clock=%0.3f clock0=%0.3f\n",
+//               is->audio_clock - last_clock,
+//               is->audio_clock, audio_clock0);
+//        last_clock = is->audio_clock;
+//    }
+//#endif
     return resampled_data_size;
 }
 
@@ -2446,6 +2505,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
     audio_callback_time = av_gettime_relative();
 
     while (len > 0) {
+        //缓冲区没有数据了 重新解码
         if (is->audio_buf_index >= is->audio_buf_size) {
            audio_size = audio_decode_frame(is);
            if (audio_size < 0) {
@@ -2473,6 +2533,7 @@ static void sdl_audio_callback(void *opaque, Uint8 *stream, int len)
         stream += len1;
         is->audio_buf_index += len1;
     }
+    //如果音频落后 则需要追赶 此时swr就会少输出采样  audio_write_buf_size就会随之减少 audclk就会变大
     is->audio_write_buf_size = is->audio_buf_size - is->audio_buf_index;
     /* Let's assume the audio driver that is used by SDL has two periods. */
     if (!isnan(is->audio_clock)) {
@@ -2511,6 +2572,8 @@ static int audio_open(void *opaque, AVChannelLayout *wanted_channel_layout, int 
         next_sample_rate_idx--;
     wanted_spec.format = AUDIO_S16SYS;
     wanted_spec.silence = 0;
+    //samples = 每次 sdl_audio_callback 里 stream 缓冲区每个声道的采样数。
+    //例如 samples = 2048、48000Hz → 一次回调约 2048/48000 ≈ 42.7 ms 的音频。
     wanted_spec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(wanted_spec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC));
     wanted_spec.callback = sdl_audio_callback;
     wanted_spec.userdata = opaque;
@@ -2614,7 +2677,7 @@ static int stream_component_open(VideoState *is, int stream_index)
 
     opts = filter_codec_opts(codec_opts, avctx->codec_id, ic, ic->streams[stream_index], codec);
     if (!av_dict_get(opts, "threads", NULL, 0))
-        av_dict_set(&opts, "threads", "auto", 0);
+        av_dict_set(&opts, "threads", "auto", 0);//设置给了AVCodecContext
     if (stream_lowres)
         av_dict_set_int(&opts, "lowres", stream_lowres, 0);
     if ((ret = avcodec_open2(avctx, codec, &opts)) < 0) {
@@ -2805,6 +2868,7 @@ static int read_thread(void *arg)
     if (genpts)
         ic->flags |= AVFMT_FLAG_GENPTS;
 
+    //让每条流在「下一个读到的 packet」里带上该流的全局 side data（seek 之后也会再带一次）。
     av_format_inject_global_side_data(ic);
 
     if (find_stream_info) {
@@ -2829,9 +2893,9 @@ static int read_thread(void *arg)
         ic->pb->eof_reached = 0; // FIXME hack, ffplay maybe should not use avio_feof() to test for the end
 
     if (seek_by_bytes < 0)
-        seek_by_bytes = !(ic->iformat->flags & AVFMT_NO_BYTE_SEEK) &&
-                        !!(ic->iformat->flags & AVFMT_TS_DISCONT) &&
-                        strcmp("ogg", ic->iformat->name);
+        seek_by_bytes = !(ic->iformat->flags & AVFMT_NO_BYTE_SEEK) && //格式支持按字节 seek
+                        !!(ic->iformat->flags & AVFMT_TS_DISCONT) &&  //格式允许时间戳不连续（如 MPEG-TS）
+                        strcmp("ogg", ic->iformat->name);             //非ogg格式
 
     is->max_frame_duration = (ic->iformat->flags & AVFMT_TS_DISCONT) ? 10.0 : 3600.0;
 
@@ -3036,6 +3100,7 @@ static int read_thread(void *arg)
         /* check if packet is in play range specified by user, then queue, otherwise discard */
         stream_start_time = ic->streams[pkt->stream_index]->start_time;
         pkt_ts = pkt->pts == AV_NOPTS_VALUE ? pkt->dts : pkt->pts;
+        //前读到的 packet 是否还在用户指定的播放时长范围内 命令-t
         pkt_in_play_range = duration == AV_NOPTS_VALUE ||
                 (pkt_ts - (stream_start_time != AV_NOPTS_VALUE ? stream_start_time : 0)) *
                 av_q2d(ic->streams[pkt->stream_index]->time_base) -
@@ -3074,7 +3139,6 @@ static VideoState *stream_open(const char *filename,
                                const AVInputFormat *iformat)
 {
     VideoState *is;
-
     is = av_mallocz(sizeof(VideoState));
     if (!is)
         return NULL;
@@ -3589,7 +3653,7 @@ static const OptionDef options[] = {
     { "fast", OPT_BOOL | OPT_EXPERT, { &fast }, "non spec compliant optimizations", "" },
     { "genpts", OPT_BOOL | OPT_EXPERT, { &genpts }, "generate pts", "" },
     { "drp", OPT_INT | HAS_ARG | OPT_EXPERT, { &decoder_reorder_pts }, "let decoder reorder pts 0=off 1=on -1=auto", ""},
-    { "lowres", OPT_INT | HAS_ARG | OPT_EXPERT, { &lowres }, "", "" },
+    { "lowres", OPT_INT | HAS_ARG | OPT_EXPERT, { &lowres }, "low resolution decoding, 1-> 1/2 size, 2->1/4 size", "" },
     { "sync", HAS_ARG | OPT_EXPERT, { .func_arg = opt_sync }, "set audio-video sync. type (type=audio/video/ext)", "type" },
     { "autoexit", OPT_BOOL | OPT_EXPERT, { &autoexit }, "exit at the end", "" },
     { "exitonkeydown", OPT_BOOL | OPT_EXPERT, { &exit_on_keydown }, "exit on key down", "" },
@@ -3661,8 +3725,7 @@ void show_help_default(const char *opt, const char *arg)
 }
 
 /* Called from the main */
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv){
     int flags;
     VideoState *is;
 
@@ -3762,3 +3825,11 @@ int main(int argc, char **argv)
 
     return 0;
 }
+//int main(int argc, char **argv){
+//    
+//    
+//    int64_t va1 = av_rescale_rnd(3, 60, 10,AV_ROUND_DOWN);
+//    printf("v1=  %lld",va1);
+//    
+//    return 0;
+//}

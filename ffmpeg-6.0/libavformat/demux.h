@@ -29,11 +29,14 @@
 #define MAX_STD_TIMEBASES (30*12+30+3+6)
 typedef struct FFStreamInfo {
     int64_t last_dts;
+    //所有帧间隔的最大公约数
     int64_t duration_gcd;
     int duration_count;
     int64_t rfps_duration_sum;
     double (*duration_error)[2][MAX_STD_TIMEBASES];
+    //avformat_find_stream_info  获所有得packet的总时长
     int64_t codec_info_duration;
+    //avformat_find_stream_info  累计的场数
     int64_t codec_info_duration_fields;
     int frame_delay_evidence;
 

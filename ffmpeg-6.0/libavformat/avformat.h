@@ -1003,7 +1003,7 @@ typedef struct AVStream {
      *
      * - demuxing: set by libavformat
      * - muxing: set by libavformat
-     *
+     *  TS中的pts  33位是规范写死的；    其他容器 没有这种定点位宽字段   如果位数则使用pts_wrap_reference  pts_wrap_behavior 做第二圈累加 
      */
     int pts_wrap_bits;
 } AVStream;
@@ -1130,7 +1130,7 @@ typedef struct AVFormatContext {
      * if and only if iformat/oformat.priv_class is not NULL.
      *
      * - muxing: set by avformat_write_header()
-     * - demuxing: set by avformat_open_input()
+     * - demuxing: set by avformat_open_input()   ff_mov_demuxer  (MOVContext)
      */
     void *priv_data;
 
@@ -1255,6 +1255,8 @@ typedef struct AVFormatContext {
      * @note this is \e not  used for determining the \ref AVInputFormat
      *       "input format"
      * @sa format_probesize
+     *
+     * 用户设置 
      */
     int64_t probesize;
 
@@ -1496,6 +1498,7 @@ typedef struct AVFormatContext {
      * Skip initial bytes when opening stream
      * - encoding: unused
      * - decoding: Set by user
+     *  跳过文件头的字节数
      */
     int64_t skip_initial_bytes;
 
@@ -2193,7 +2196,7 @@ void avformat_close_input(AVFormatContext **s);
 /**
  * @}
  */
-
+//目标时间对不上可 seek 点（通常是关键帧）时，往时间更早的一侧取。
 #define AVSEEK_FLAG_BACKWARD 1 ///< seek backward
 #define AVSEEK_FLAG_BYTE     2 ///< seeking based on position in bytes
 #define AVSEEK_FLAG_ANY      4 ///< seek to any frame, even non-keyframes
@@ -2784,7 +2787,8 @@ AVRational av_guess_frame_rate(AVFormatContext *ctx, AVStream *stream, AVFrame *
  *          AVERROR code if spec is invalid
  *
  * @note  A stream specifier can match several streams in the format.
- *  pecifier 字符串为 "v"，表示要匹配视频流。如果 stream 是一个视频流，那么 match 将为非零值，表示匹配成功，
+ *  pecifier 字符串为 "v"，表示要匹配视频流。如果 stream 是一个视频流，返回值 > 0 表示匹配成功，说明有符合条件的流存在
+ *  spec： "0" "v:0" "a:0" "v" "a"
  */
 int avformat_match_stream_specifier(AVFormatContext *s, AVStream *st,
                                     const char *spec);

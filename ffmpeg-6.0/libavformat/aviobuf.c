@@ -126,6 +126,15 @@ void ffio_init_context(FFIOContext *ctx,
     ctx->last_time           = AV_NOPTS_VALUE;
     ctx->short_seek_get      = NULL;
 }
+void ffio_init_read_context(FFIOContext *s, const uint8_t *buffer, int buffer_size)
+{
+    ffio_init_context(s, (unsigned char*)buffer, buffer_size, 0, NULL, NULL, NULL, NULL);
+}
+
+void ffio_init_write_context(FFIOContext *s, uint8_t *buffer, int buffer_size)
+{
+    ffio_init_context(s, buffer, buffer_size, 1, NULL, NULL, NULL, NULL);
+}
 
 AVIOContext *avio_alloc_context(
                   unsigned char *buffer,
@@ -224,11 +233,12 @@ void avio_write(AVIOContext *s, const unsigned char *buf, int size)
     if (size <= 0)
         return;
     if (s->direct && !s->update_checksum) {
-        avio_flush(s);
-        writeout(s, buf, size);
+        avio_flush(s); //先把缓存数据 输出
+        writeout(s, buf, size);  //直接输出
         return;
     }
     do {
+        //先写到缓存 如果缓存满了 再输出
         int len = FFMIN(s->buf_end - s->buf_ptr, size);
         memcpy(s->buf_ptr, buf, len);
         s->buf_ptr += len;
@@ -254,9 +264,11 @@ int64_t avio_seek(AVIOContext *s, int64_t offset, int whence)
     FFIOContext *const ctx = ffiocontext(s);
     int64_t offset1;
     int64_t pos;
+    //单独去除force
     int force = whence & AVSEEK_FORCE;
     int buffer_size;
     int short_seek;
+    //去掉force
     whence &= ~AVSEEK_FORCE;
 
     if(!s)
@@ -267,6 +279,7 @@ int64_t avio_seek(AVIOContext *s, int64_t offset, int whence)
 
     buffer_size = s->buf_end - s->buffer;
     // pos is the absolute position that the beginning of s->buffer corresponds to in the file
+    //s->buffer 对应的文件中的位置
     pos = s->pos - (s->write_flag ? 0 : buffer_size);
 
     if (whence != SEEK_CUR && whence != SEEK_SET)
@@ -300,6 +313,7 @@ int64_t avio_seek(AVIOContext *s, int64_t offset, int whence)
                !s->write_flag && offset1 >= 0 &&
                (!s->direct || !s->seek) &&
               (whence != SEEK_END || force)) {
+        /*目标位置在buf_ptr 附近   连续读就可以*/
         while(s->pos < offset && !s->eof_reached)
             fill_buffer(s);
         if (s->eof_reached)
@@ -309,6 +323,7 @@ int64_t avio_seek(AVIOContext *s, int64_t offset, int whence)
         int64_t res;
 
         pos -= FFMIN(buffer_size>>1, pos);
+        //先seek到附近 在连续读到精确为止
         if ((res = s->seek(s->opaque, pos, SEEK_SET)) < 0)
             return res;
         s->buf_end =
@@ -354,12 +369,14 @@ int64_t avio_size(AVIOContext *s)
 
     if (!s->seek)
         return AVERROR(ENOSYS);
+    //特使标志 AVSEEK_SIZE  获取文件大小
     size = s->seek(s->opaque, 0, AVSEEK_SIZE);
     if (size < 0) {
+        //seek到倒数第二个字节
         if ((size = s->seek(s->opaque, -1, SEEK_END)) < 0)
             return size;
         size++;
-        s->seek(s->opaque, s->pos, SEEK_SET);
+        s->seek(s->opaque, s->pos, SEEK_SET); //回到原来位置
     }
     return size;
 }
@@ -527,15 +544,18 @@ static int read_packet_wrapper(AVIOContext *s, uint8_t *buf, int size)
     return ret;
 }
 
-/* Input stream */
-
+/* Input stream
+调用这个函数的前提是 缓冲区已经没有数据
+*/
 static void fill_buffer(AVIOContext *s)
 {
     FFIOContext *const ctx = (FFIOContext *)s;
     int max_buffer_size = s->max_packet_size ?
                           s->max_packet_size : IO_BUFFER_SIZE;
+    //写数据的位置
     uint8_t *dst        = s->buf_end - s->buffer + max_buffer_size <= s->buffer_size ?
                           s->buf_end : s->buffer;
+    //写数据的大小
     int len             = s->buffer_size - (dst - s->buffer);
 
     /* can't fill the buffer without read_packet, just set EOF if appropriate */
@@ -545,7 +565,7 @@ static void fill_buffer(AVIOContext *s)
     /* no need to do anything if EOF already reached */
     if (s->eof_reached)
         return;
-
+    //缓冲区重新开始了
     if (s->update_checksum && dst == s->buffer) {
         if (s->buf_end > s->checksum_ptr)
             s->checksum = s->update_checksum(s->checksum, s->checksum_ptr,
@@ -554,6 +574,7 @@ static void fill_buffer(AVIOContext *s)
     }
 
     /* make buffer smaller in case it ended up large after probing */
+    //缓存区临时过大 重新分配大小
     if (s->read_packet && ctx->orig_buffer_size &&
         s->buffer_size > ctx->orig_buffer_size  && len >= ctx->orig_buffer_size) {
         if (dst == s->buffer && s->buf_ptr != dst) {
@@ -689,7 +710,7 @@ int ffio_read_size(AVIOContext *s, unsigned char *buf, int size)
         return ret;
     return AVERROR_INVALIDDATA;
 }
-
+//buf 是调用方提供的 备用缓冲区：零拷贝做不到时，才把数据拷进这里。
 int ffio_read_indirect(AVIOContext *s, unsigned char *buf, int size, const unsigned char **data)
 {
     if (s->buf_end - s->buf_ptr >= size && !s->write_flag) {
@@ -941,7 +962,7 @@ uint64_t ffio_read_varlen(AVIOContext *bc){
     do{
         tmp = avio_r8(bc);
         val= (val<<7) + (tmp&127);
-    }while(tmp&128);
+    }while(tmp&128);//当前字节的最高位 如果是0 就退出
     return val;
 }
 
@@ -1035,7 +1056,7 @@ int ffio_copy_url_options(AVIOContext* pb, AVDictionary** avio_opts)
 
     return ret;
 }
-
+//校验和
 static void update_checksum(AVIOContext *s)
 {
     if (s->update_checksum && s->buf_ptr > s->checksum_ptr) {
@@ -1158,7 +1179,7 @@ int ffio_realloc_buf(AVIOContext *s, int buf_size)
 static int url_resetbuf(AVIOContext *s, int flags)
 {
     av_assert1(flags == AVIO_FLAG_WRITE || flags == AVIO_FLAG_READ);
-
+    //这里的flags跟s->write_flags 不是一个概念
     if (flags & AVIO_FLAG_WRITE) {
         s->buf_end = s->buffer + s->buffer_size;
         s->write_flag = 1;
@@ -1168,28 +1189,32 @@ static int url_resetbuf(AVIOContext *s, int flags)
     }
     return 0;
 }
-
+//buf_size 就是文件开头的数据大小
 int ffio_rewind_with_probe_data(AVIOContext *s, unsigned char **bufp, int buf_size)
 {
     int64_t buffer_start;
     int buffer_size;
     int overlap, new_size, alloc_size;
     uint8_t *buf = *bufp;
-
+    //在demuxer下的  只是能读的 不能写 
     if (s->write_flag) {
         av_freep(bufp);
         return AVERROR(EINVAL);
     }
-
+    //IOContext中数据大小
     buffer_size = s->buf_end - s->buffer;
-
-    /* the buffers must touch or overlap */
+    
+    /*
+     s->pos - buffer_size 文件的pos位置之前的buffer_size的位置
+     the buffers must touch or overlap 相接或者重叠 才是合法的
+     */
     if ((buffer_start = s->pos - buffer_size) > buf_size) {
         av_freep(bufp);
         return AVERROR(EINVAL);
     }
-
+    //重叠的部分
     overlap = buf_size - buffer_start;
+    //总的内存大小
     new_size = buf_size + buffer_size - overlap;
 
     alloc_size = FFMAX(s->buffer_size, new_size);
@@ -1380,7 +1405,7 @@ int avio_handshake(AVIOContext *c)
 }
 
 /* output in a dynamic buffer */
-
+//DynBuffer = 内存版“可增长文件”；写进去是为了用统一的 AVIO 写接口拼数据，最后拿到一块连续字节做后续写入、封装或解码。
 typedef struct DynBuffer {
     int pos, size, allocated_size;
     uint8_t *buffer;
@@ -1498,7 +1523,7 @@ int avio_get_dyn_buf(AVIOContext *s, uint8_t **pbuffer)
         *pbuffer = d->io_buffer;
         return FFMAX(s->buf_ptr, s->buf_ptr_max) - s->buffer;
     }
-
+    //此处把IOContext中的缓存数据 刷到DyBuffer中 
     avio_flush(s);
 
     *pbuffer = d->buffer;
@@ -1589,4 +1614,118 @@ int ffio_close_null_buf(AVIOContext *s)
     avio_context_free(&s);
 
     return size;
+}
+
+int avio_check(const char *url, int flags)
+{
+    URLContext *h;
+    int ret = ffurl_alloc(&h, url, flags, NULL);
+    if (ret < 0)
+        return ret;
+
+    if (h->prot->url_check) {
+        ret = h->prot->url_check(h, flags);
+    } else {
+        ret = ffurl_connect(h, NULL);
+        if (ret >= 0)
+            ret = flags;
+    }
+
+    ffurl_close(h);
+    return ret;
+}
+
+#if !FF_API_AVIODIRCONTEXT
+struct AVIODirContext {
+    struct URLContext *url_context;
+};
+#endif
+
+int avio_open_dir(AVIODirContext **s, const char *url, AVDictionary **options)
+{
+    URLContext *h = NULL;
+    AVIODirContext *ctx = NULL;
+    int ret;
+    av_assert0(s);
+
+    ctx = av_mallocz(sizeof(*ctx));
+    if (!ctx) {
+        ret = AVERROR(ENOMEM);
+        goto fail;
+    }
+
+    if ((ret = ffurl_alloc(&h, url, AVIO_FLAG_READ, NULL)) < 0)
+        goto fail;
+
+    if (h->prot->url_open_dir && h->prot->url_read_dir && h->prot->url_close_dir) {
+        if (options && h->prot->priv_data_class &&
+            (ret = av_opt_set_dict(h->priv_data, options)) < 0)
+            goto fail;
+        ret = h->prot->url_open_dir(h);
+    } else
+        ret = AVERROR(ENOSYS);
+    if (ret < 0)
+        goto fail;
+
+    h->is_connected = 1;
+    ctx->url_context = h;
+    *s = ctx;
+    return 0;
+
+  fail:
+    av_free(ctx);
+    *s = NULL;
+    ffurl_close(h);
+    return ret;
+}
+
+int avio_read_dir(AVIODirContext *s, AVIODirEntry **next)
+{
+    URLContext *h;
+    int ret;
+
+    if (!s || !s->url_context)
+        return AVERROR(EINVAL);
+    h = s->url_context;
+    if ((ret = h->prot->url_read_dir(h, next)) < 0)
+        avio_free_directory_entry(next);
+    return ret;
+}
+
+int avio_close_dir(AVIODirContext **s)
+{
+    URLContext *h;
+
+    av_assert0(s);
+    if (!(*s) || !(*s)->url_context)
+        return AVERROR(EINVAL);
+    h = (*s)->url_context;
+    h->prot->url_close_dir(h);
+    ffurl_close(h);
+    av_freep(s);
+    *s = NULL;
+    return 0;
+}
+
+void avio_free_directory_entry(AVIODirEntry **entry)
+{
+    if (!entry || !*entry)
+        return;
+    av_free((*entry)->name);
+    av_freep(entry);
+}
+
+int ff_check_interrupt(AVIOInterruptCB *cb)
+{
+    if (cb && cb->callback)
+        return cb->callback(cb->opaque);
+    return 0;
+}
+
+int ff_rename(const char *url_src, const char *url_dst, void *logctx)
+{
+    int ret = ffurl_move(url_src, url_dst);
+    if (ret < 0)
+        av_log(logctx, AV_LOG_ERROR, "failed to rename file %s to %s: %s\n", url_src, url_dst, av_err2str(ret));
+    return ret;
 }

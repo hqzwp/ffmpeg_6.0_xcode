@@ -46,7 +46,7 @@
 #include "id3v2.h"
 #include "internal.h"
 #include "url.h"
-
+//超过第二圈 根据pts_wrap_reference累加
 static int64_t wrap_timestamp(const AVStream *st, int64_t timestamp)
 {
     const FFStream *const sti = cffstream(st);
@@ -66,7 +66,7 @@ int64_t ff_wrap_timestamp(const AVStream *st, int64_t timestamp)
 {
     return wrap_timestamp(st, timestamp);
 }
-
+//可以探测解码的codec
 static const AVCodec *find_probe_decoder(AVFormatContext *s, const AVStream *st, enum AVCodecID codec_id)
 {
     const AVCodec *codec;
@@ -166,7 +166,7 @@ static int init_input(AVFormatContext *s, const char *filename,
                                       "will be ignored with AVFMT_NOFILE format.\n");
         return 0;
     }
-
+    //rtspdemuxer
     if ((s->iformat && s->iformat->flags & AVFMT_NOFILE) ||
         (!s->iformat && (s->iformat = av_probe_input_format2(&pd, 0, &score))))
         return score;
@@ -179,7 +179,7 @@ static int init_input(AVFormatContext *s, const char *filename,
     return av_probe_input_buffer2(s->pb, &s->iformat, filename,
                                   s, 0, s->format_probesize);
 }
-
+//更新stream 对应的CodecParamater
 static int update_stream_avctx(AVFormatContext *s)
 {
     int ret;
@@ -413,60 +413,7 @@ static void force_codec_ids(AVFormatContext *s, AVStream *st)
         break;
     }
 }
-
-static int probe_codec(AVFormatContext *s, AVStream *st, const AVPacket *pkt)
-{
-    FFFormatContext *const si = ffformatcontext(s);
-    FFStream *const sti = ffstream(st);
-
-    if (sti->request_probe > 0) {
-        AVProbeData *const pd = &sti->probe_data;
-        int end;
-        av_log(s, AV_LOG_DEBUG, "probing stream %d pp:%d\n", st->index, sti->probe_packets);
-        --sti->probe_packets;
-
-        if (pkt) {
-            uint8_t *new_buf = av_realloc(pd->buf, pd->buf_size+pkt->size+AVPROBE_PADDING_SIZE);
-            if (!new_buf) {
-                av_log(s, AV_LOG_WARNING,
-                       "Failed to reallocate probe buffer for stream %d\n",
-                       st->index);
-                goto no_packet;
-            }
-            pd->buf = new_buf;
-            memcpy(pd->buf + pd->buf_size, pkt->data, pkt->size);
-            pd->buf_size += pkt->size;
-            memset(pd->buf + pd->buf_size, 0, AVPROBE_PADDING_SIZE);
-        } else {
-no_packet:
-            sti->probe_packets = 0;
-            if (!pd->buf_size) {
-                av_log(s, AV_LOG_WARNING,
-                       "nothing to probe for stream %d\n", st->index);
-            }
-        }
-
-        end = si->raw_packet_buffer_size >= s->probesize
-                || sti->probe_packets <= 0;
-
-        if (end || av_log2(pd->buf_size) != av_log2(pd->buf_size - pkt->size)) {
-            int score = set_codec_from_probe_data(s, st, pd);
-            if (    (st->codecpar->codec_id != AV_CODEC_ID_NONE && score > AVPROBE_SCORE_STREAM_RETRY)
-                || end) {
-                pd->buf_size = 0;
-                av_freep(&pd->buf);
-                sti->request_probe = -1;
-                if (st->codecpar->codec_id != AV_CODEC_ID_NONE) {
-                    av_log(s, AV_LOG_DEBUG, "probed stream %d\n", st->index);
-                } else
-                    av_log(s, AV_LOG_WARNING, "probed stream %d failed\n", st->index);
-            }
-            force_codec_ids(s, st);
-        }
-    }
-    return 0;
-}
-
+// TS 32位PTS 时间参考
 static int update_wrap_reference(AVFormatContext *s, AVStream *st, int stream_index, AVPacket *pkt)
 {
     FFStream *const sti = ffstream(st);
@@ -479,6 +426,8 @@ static int update_wrap_reference(AVFormatContext *s, AVStream *st, int stream_in
         ref = pkt->pts;
     if (sti->pts_wrap_reference != AV_NOPTS_VALUE || st->pts_wrap_bits >= 63 || ref == AV_NOPTS_VALUE || !s->correct_ts_overflow)
         return 0;
+    //当pts_wrap_bits 不够时  通过以下方式进行累加
+    //把 ref 只留下合法的低 pts_wrap_bits 位，去掉可能多出来的高位。
     ref &= (1LL << st->pts_wrap_bits)-1;
 
     // reference time stamp should be 60 s before first time stamp
@@ -534,7 +483,58 @@ static int update_wrap_reference(AVFormatContext *s, AVStream *st, int stream_in
     }
     return 1;
 }
+static int probe_codec(AVFormatContext *s, AVStream *st, const AVPacket *pkt)
+{
+    FFFormatContext *const si = ffformatcontext(s);
+    FFStream *const sti = ffstream(st);
 
+    if (sti->request_probe > 0) {
+        AVProbeData *const pd = &sti->probe_data;
+        int end;
+        av_log(s, AV_LOG_DEBUG, "probing stream %d pp:%d\n", st->index, sti->probe_packets);
+        --sti->probe_packets;
+
+        if (pkt) {
+            uint8_t *new_buf = av_realloc(pd->buf, pd->buf_size+pkt->size+AVPROBE_PADDING_SIZE);
+            if (!new_buf) {
+                av_log(s, AV_LOG_WARNING,
+                       "Failed to reallocate probe buffer for stream %d\n",
+                       st->index);
+                goto no_packet;
+            }
+            pd->buf = new_buf;
+            memcpy(pd->buf + pd->buf_size, pkt->data, pkt->size);
+            pd->buf_size += pkt->size;
+            memset(pd->buf + pd->buf_size, 0, AVPROBE_PADDING_SIZE);
+        } else {
+no_packet:
+            sti->probe_packets = 0;
+            if (!pd->buf_size) {
+                av_log(s, AV_LOG_WARNING,
+                       "nothing to probe for stream %d\n", st->index);
+            }
+        }
+
+        end = si->raw_packet_buffer_size >= s->probesize
+                || sti->probe_packets <= 0;
+
+        if (end || av_log2(pd->buf_size) != av_log2(pd->buf_size - pkt->size)) {
+            int score = set_codec_from_probe_data(s, st, pd);
+            if (    (st->codecpar->codec_id != AV_CODEC_ID_NONE && score > AVPROBE_SCORE_STREAM_RETRY)
+                || end) {
+                pd->buf_size = 0;
+                av_freep(&pd->buf);
+                sti->request_probe = -1;
+                if (st->codecpar->codec_id != AV_CODEC_ID_NONE) {
+                    av_log(s, AV_LOG_DEBUG, "probed stream %d\n", st->index);
+                } else
+                    av_log(s, AV_LOG_WARNING, "probed stream %d failed\n", st->index);
+            }
+            force_codec_ids(s, st);
+        }
+    }
+    return 0;
+}
 int ff_read_packet(AVFormatContext *s, AVPacket *pkt)
 {
     FFFormatContext *const si = ffformatcontext(s);
@@ -555,7 +555,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         AVStream *st;
         FFStream *sti;
         const AVPacket *pkt1;
-
+        //命中缓存
         if (pktl) {
             AVStream *const st = s->streams[pktl->pkt.stream_index];
             if (si->raw_packet_buffer_size >= s->probesize)
@@ -635,7 +635,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
 
         if (!pktl && sti->request_probe <= 0)
             return 0;
-
+        //探测时才会缓存
         err = avpriv_packet_list_put(&si->raw_packet_buffer,
                                      pkt, NULL, 0);
         if (err < 0) {
@@ -708,7 +708,7 @@ static void compute_frame_duration(AVFormatContext *s, int *pnum, int *pden,
         break;
     }
 }
-
+//重排深度 = B 帧导致的解码缓冲深度；看准 = 这个深度已经稳定
 static int has_decode_delay_been_guessed(AVStream *st)
 {
     FFStream *const sti = ffstream(st);
@@ -956,10 +956,11 @@ static void compute_pkt_fields(AVFormatContext *s, AVStream *st,
         }
 
         sti->last_dts_for_order_check = pkt->dts;
+        //dts 异常
         if (sti->dts_ordered < 8 * sti->dts_misordered && pkt->dts == pkt->pts)
             pkt->dts = AV_NOPTS_VALUE;
     }
-
+    // 用户手动设置 AVFMT_FLAG_IGNDTS
     if ((s->flags & AVFMT_FLAG_IGNDTS) && pkt->pts != AV_NOPTS_VALUE)
         pkt->dts = AV_NOPTS_VALUE;
 
@@ -1443,7 +1444,7 @@ int av_read_frame(AVFormatContext *s, AVPacket *pkt)
     int eof = 0;
     int ret;
     AVStream *st;
-
+    //此处不用处理pts
     if (!genpts) {
         ret = si->packet_buffer.head
               ? avpriv_packet_list_get(&si->packet_buffer, pkt)
@@ -1452,7 +1453,7 @@ int av_read_frame(AVFormatContext *s, AVPacket *pkt)
             return ret;
         goto return_packet;
     }
-
+    //如果pts有问题 再次处理
     for (;;) {
         PacketListEntry *pktl = si->packet_buffer.head;
 
@@ -1933,7 +1934,7 @@ static int determinable_frame_size(const AVCodecContext *avctx)
 
     return 0;
 }
-
+//avformat_find_stream_info 中是否已经查到codec的参数
 static int has_codec_parameters(const AVStream *st, const char **errmsg_ptr)
 {
     const FFStream *const sti = cffstream(st);
@@ -2131,7 +2132,7 @@ static int compute_chapters_end(AVFormatContext *s)
     av_free(timetable);
     return 0;
 }
-
+//返回  fps * 1001 * 12   防止小数流失
 static int get_std_framerate(int i)
 {
     if (i < 30*12)
@@ -2179,7 +2180,7 @@ static int tb_unreliable(AVFormatContext *ic, AVStream *st)
         return 1;
     return 0;
 }
-
+//根据dts统计fps
 int ff_rfps_add_frame(AVFormatContext *ic, AVStream *st, int64_t ts)
 {
     FFStream *const sti = ffstream(st);
@@ -2198,15 +2199,22 @@ int ff_rfps_add_frame(AVFormatContext *ic, AVStream *st, int64_t ts)
 
 //         if (st->codec->codec_type == AVMEDIA_TYPE_VIDEO)
 //             av_log(NULL, AV_LOG_ERROR, "%f\n", dts);
+        
+        //第一维 j=0/1 不是算法必须的，而是为了兼容”时间戳整体偏移半帧
+        //遍历所有的帧率进行筛选
         for (int i = 0; i < MAX_STD_TIMEBASES; i++) {
+            //科学计数法 1 × 10¹⁰
             if (info->duration_error[0][1][i] < 1e10) {
                 int framerate = get_std_framerate(i);
+                // 把时间转换成理论帧号 （如果帧率趋于平稳时 sdts就是整数）
                 double sdts = dts*framerate/(1001*12);
                 for (int j = 0; j < 2; j++) {
+                    //假设时间轴是正常对齐（j=0）或整体偏移半帧（j=1），找到对应的最近整数帧号。
                     int64_t ticks = llrint(sdts+j*0.5);
+                    //计算该假设下理论帧号与整数帧号之间的误差，并把误差累计起来，最终选择误差方差最小的候选帧率。
                     double error = sdts - ticks + j*0.5;
-                    info->duration_error[j][0][i] += error;
-                    info->duration_error[j][1][i] += error*error;
+                    info->duration_error[j][0][i] += error;             //Σx
+                    info->duration_error[j][1][i] += error*error;       //Σx²
                 }
             }
         }
@@ -2214,12 +2222,13 @@ int ff_rfps_add_frame(AVFormatContext *ic, AVStream *st, int64_t ts)
             info->duration_count++;
             info->rfps_duration_sum += duration;
         }
-
+        //每10帧淘汰明显错误的帧率
         if (info->duration_count % 10 == 0) {
             int n = info->duration_count;
             for (int i = 0; i < MAX_STD_TIMEBASES; i++) {
                 if (info->duration_error[0][1][i] < 1e10) {
                     double a0     = info->duration_error[0][0][i] / n;
+                    //误差的方差    方差很小 所有误差都集中在 0 附近。
                     double error0 = info->duration_error[0][1][i] / n - a0*a0;
                     double a1     = info->duration_error[1][0][i] / n;
                     double error1 = info->duration_error[1][1][i] / n - a1*a1;
@@ -2240,9 +2249,12 @@ int ff_rfps_add_frame(AVFormatContext *ic, AVStream *st, int64_t ts)
 
     return 0;
 }
-
-void ff_rfps_calculate(AVFormatContext *ic)
-{
+/*
+ 收集统计信息
+ ff_rfps_add_frame()->  ff_rfps_calculate()
+ 计算 r_frame_rate / avg_frame_rate
+ */
+void ff_rfps_calculate(AVFormatContext *ic){
     for (unsigned i = 0; i < ic->nb_streams; i++) {
         AVStream *const st  = ic->streams[i];
         FFStream *const sti = ffstream(st);
@@ -2252,9 +2264,11 @@ void ff_rfps_calculate(AVFormatContext *ic)
         // the check for tb_unreliable() is not completely correct, since this is not about handling
         // an unreliable/inexact time base, but a time base that is finer than necessary, as e.g.
         // ipmovie.c produces.
+        //先使用GCD计算
         if (tb_unreliable(ic, st) && sti->info->duration_count > 15 && sti->info->duration_gcd > FFMAX(1, st->time_base.den/(500LL*st->time_base.num)) && !st->r_frame_rate.num &&
             sti->info->duration_gcd < INT64_MAX / st->time_base.num)
             av_reduce(&st->r_frame_rate.num, &st->r_frame_rate.den, st->time_base.den, st->time_base.num * sti->info->duration_gcd, INT_MAX);
+        //如果上面没有计算出来 则使用统计数据计算
         if (sti->info->duration_count > 1 && !st->r_frame_rate.num
             && tb_unreliable(ic, st)) {
             int num = 0;
@@ -2359,7 +2373,7 @@ fail:
     av_bsf_free(&sti->extract_extradata.bsf);
     return ret;
 }
-
+//新的全局解码参数（如 H.264 SPS/PPS、HEVC VPS/SPS/PPS、AV1 sequence header 等）
 static int extract_extradata(FFFormatContext *si, AVStream *st, const AVPacket *pkt)
 {
     FFStream *const sti = ffstream(st);
@@ -2437,7 +2451,8 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
     int64_t max_subtitle_analyze_duration;
     int64_t probesize = ic->probesize;
     int eof_reached = 0;
-    int *missing_streams = av_opt_ptr(ic->iformat->priv_class, ic->priv_data, "missing_streams");
+    //FLV 头会声明“有没有音视频”。打开时把标志放进 missing_streams；某路流真正出现后清掉对应位。 还非 0 表示：头里说有，但还没见到那路流。
+    int *missing_streams = av_opt_ptr(ic->iformat->priv_class, ic->priv_data, "missing_streams");//flv
 
     flush_codecs = probesize > 0;
 
@@ -2451,7 +2466,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
         max_subtitle_analyze_duration = 30*AV_TIME_BASE;
         if (!strcmp(ic->iformat->name, "flv"))
             max_stream_analyze_duration = 90*AV_TIME_BASE;
-        if (!strcmp(ic->iformat->name, "mpeg") || !strcmp(ic->iformat->name, "mpegts"))
+        if (!strcmp(ic->iformat->name, "mpeg") || !strcmp(ic->iformat->name, "mpegts"))// ps ts
             max_stream_analyze_duration = 7*AV_TIME_BASE;
     }
 
@@ -2518,6 +2533,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
     }
 
     read_size = 0;
+    //解码探测
     for (;;) {
         const AVPacket *pkt;
         AVStream *st;
@@ -2531,13 +2547,15 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             break;
         }
 
-        /* check if one codec still needs to be handled */
+        /* check if one codec still needs to be handled
+         检测所有的流是否通过  如果所有的流都通过的话 此时 i == ic->nb_streams
+         */
         for (i = 0; i < ic->nb_streams; i++) {
             AVStream *const st  = ic->streams[i];
             FFStream *const sti = ffstream(st);
             int fps_analyze_framecount = 20;
             int count;
-
+            //以下所有的break 都是检测未通过
             if (!has_codec_parameters(st, NULL))
                 break;
             /* If the timebase is coarse (like the usual millisecond precision
@@ -2577,6 +2595,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
         }
         analyzed_all_streams = 0;
         if (!missing_streams || !*missing_streams)
+            //这里就代表所有的流都检测通过了
             if (i == ic->nb_streams) {
                 analyzed_all_streams = 1;
                 /* NOTE: If the format has no header, then we need to read some
@@ -2619,7 +2638,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             eof_reached = 1;
             break;
         }
-
+        //探测数据存到packet_buffer 中
         if (!(ic->flags & AVFMT_FLAG_NOBUFFER)) {
             ret = avpriv_packet_list_put(&si->packet_buffer,
                                          pkt1, NULL, 0);
@@ -2643,9 +2662,9 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
                 goto unref_then_goto_end;
             sti->avctx_inited = 1;
         }
-
+        //检测DTS异常
         if (pkt->dts != AV_NOPTS_VALUE && sti->codec_info_nb_frames > 1) {
-            /* check for non-increasing dts */
+            /* check for non-increasing dts  单调递增检测  */
             if (sti->info->fps_last_dts != AV_NOPTS_VALUE &&
                 sti->info->fps_last_dts >= pkt->dts) {
                 av_log(ic, AV_LOG_DEBUG,
@@ -2659,7 +2678,9 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             }
             /* Check for a discontinuity in dts. If the difference in dts
              * is more than 1000 times the average packet duration in the
-             * sequence, we treat it as a discontinuity. */
+             * sequence, we treat it as a discontinuity.
+             连续性检测
+             */
             if (sti->info->fps_last_dts != AV_NOPTS_VALUE &&
                 sti->info->fps_last_dts_idx > sti->info->fps_first_dts_idx &&
                 (pkt->dts - (uint64_t)sti->info->fps_last_dts) / 1000 >
@@ -2683,6 +2704,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             sti->info->fps_last_dts     = pkt->dts;
             sti->info->fps_last_dts_idx = sti->codec_info_nb_frames;
         }
+        //统计探测时长
         if (sti->codec_info_nb_frames > 1) {
             int64_t t = 0;
             int64_t limit;
@@ -2703,7 +2725,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
             if (analyzed_all_streams)                                limit = max_analyze_duration;
             else if (avctx->codec_type == AVMEDIA_TYPE_SUBTITLE) limit = max_subtitle_analyze_duration;
             else                                                     limit = max_stream_analyze_duration;
-
+            //超过累计时长  退出探测
             if (t >= limit) {
                 av_log(ic, AV_LOG_VERBOSE, "max_analyze_duration %"PRId64" reached at %"PRId64" microseconds st:%d\n",
                        limit,
@@ -2712,6 +2734,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
                     av_packet_unref(pkt1);
                 break;
             }
+            //统计累计时长
             if (pkt->duration > 0) {
                 if (avctx->codec_type == AVMEDIA_TYPE_SUBTITLE && pkt->pts != AV_NOPTS_VALUE && st->start_time != AV_NOPTS_VALUE && pkt->pts >= st->start_time
                     && (uint64_t)pkt->pts - st->start_time < INT64_MAX
@@ -2829,6 +2852,7 @@ int avformat_find_stream_info(AVFormatContext *ic, AVDictionary **options)
                     sti->info->codec_info_duration_fields >= INT64_MAX / st->time_base.den ||
                     sti->info->codec_info_duration        < 0)
                     continue;
+                //估算avg_frame_rate  通过统计信息
                 av_reduce(&st->avg_frame_rate.num, &st->avg_frame_rate.den,
                           sti->info->codec_info_duration_fields * (int64_t) st->time_base.den,
                           sti->info->codec_info_duration * 2 * (int64_t) st->time_base.num, 60000);

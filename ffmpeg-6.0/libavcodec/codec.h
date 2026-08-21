@@ -40,6 +40,7 @@
 
 /**
  * Decoder can use draw_horiz_band callback.
+ 解码时可按水平条带回调画（边解边显示）
  */
 #define AV_CODEC_CAP_DRAW_HORIZ_BAND     (1 <<  0)
 /**
@@ -72,11 +73,13 @@
  *       flag also means that the encoder must set the pts and duration for
  *       each output packet. If this flag is not set, the pts and duration will
  *       be determined by libavcodec from the input frame.
+ 有延迟，结束要送空包把剩余数据刷出来
  */
 #define AV_CODEC_CAP_DELAY               (1 <<  5)
 /**
  * Codec can be fed a final frame with a smaller size.
  * This can be used to prevent truncation of the last audio samples.
+ 最后一帧可以更短（音频尾巴不截断）
  */
 #define AV_CODEC_CAP_SMALL_LAST_FRAME    (1 <<  6)
 
@@ -99,10 +102,12 @@
 #define AV_CODEC_CAP_EXPERIMENTAL        (1 <<  9)
 /**
  * Codec should fill in channel configuration and samplerate instead of container
+ 声道数/采样率由 codec 自己填，不靠容器
  */
 #define AV_CODEC_CAP_CHANNEL_CONF        (1 << 10)
 /**
  * Codec supports frame-level multithreading.
+ 支持按帧多线程
  */
 #define AV_CODEC_CAP_FRAME_THREADS       (1 << 12)
 /**
@@ -131,6 +136,12 @@
  * the stream.
  * A decoder marked with this flag should only be used as last resort
  * choice for probing.
+ 不适合拿来 probe（比如硬解启动贵）
+ * 打开文件后，FFmpeg 常常要试解几帧，确认：
+ 
+ 宽高、帧率
+ 像素格式、采样率
+ 码流是不是真的这种编码
  */
 #define AV_CODEC_CAP_AVOID_PROBING       (1 << 17)
 
@@ -138,6 +149,7 @@
  * Codec is backed by a hardware implementation. Typically used to
  * identify a non-hwaccel hardware decoder. For information about hwaccels, use
  * avcodec_get_hw_config() instead.
+ 硬编/硬解实现
  */
 #define AV_CODEC_CAP_HARDWARE            (1 << 18)
 
@@ -145,6 +157,7 @@
  * Codec is potentially backed by a hardware implementation, but not
  * necessarily. This is used instead of AV_CODEC_CAP_HARDWARE, if the
  * implementation provides some sort of internal fallback.
+ 可能走硬件，失败可回退软件
  */
 #define AV_CODEC_CAP_HYBRID              (1 << 19)
 

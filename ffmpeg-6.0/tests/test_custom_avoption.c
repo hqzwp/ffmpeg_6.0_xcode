@@ -230,6 +230,7 @@ int main(void)
     av_opt_free(ctx);
     av_free(ctx);
 
+    
     printf("--- summary: %d run, %d failed ---\n", tests_run, tests_failed);
     return tests_failed ? 1 : 0;
 }

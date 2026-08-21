@@ -264,6 +264,7 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
     int *dstcount;
 
     if (po->flags & OPT_SPEC) {
+        //-c:v:1
         SpecifierOpt **so = dst;
         char *p = strchr(opt, ':');
         char *str;
@@ -388,7 +389,7 @@ int parse_optgroup(void *optctx, OptionGroup *g)
 
     for (i = 0; i < g->nb_opts; i++) {
         Option *o = &g->opts[i];
-
+        //组和选项至少有相同的标志位
         if (g->group_def->flags &&
             !(g->group_def->flags & o->opt->flags)) {
             av_log(NULL, AV_LOG_ERROR, "Option %s (%s) cannot be applied to "
@@ -708,12 +709,14 @@ int split_commandline(OptionParseContext *octx, int argc, char *argv[],
         const OptionDef *po;
         int ret;
         av_log(NULL, AV_LOG_DEBUG, "Reading option '%s' ...", opt);
-
+        //--
         if (opt[0] == '-' && opt[1] == '-' && !opt[2]) {
             dashdash = optindex;
             continue;
         }
-        /* unnamed group separators, e.g. output filename */
+        /* unnamed group separators, e.g. output filename
+         输出结束
+         */
         if (opt[0] != '-' || !opt[1] || dashdash+1 == optindex) {
             finish_group(octx, 0, opt);
             av_log(NULL, AV_LOG_DEBUG, " matched as %s.\n", groups[0].name);
@@ -730,7 +733,7 @@ do {                                                                           \
     }                                                                          \
 } while (0)
 
-        /* named group separators, e.g. -i */
+        /* 输入组 输出组的结束标记  */
         if ((ret = match_group_separator(groups, nb_groups, opt)) >= 0) {
             GET_ARG(arg);
             finish_group(octx, ret, arg);

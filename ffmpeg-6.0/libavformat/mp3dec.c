@@ -22,6 +22,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/dict.h"
+#include "libavutil/internal.h"
 #include "libavutil/mathematics.h"
 #include "avformat.h"
 #include "internal.h"
@@ -622,3 +623,38 @@ const AVInputFormat ff_mp3_demuxer = {
     .extensions     = "mp2,mp3,m2a,mpa", /* XXX: use probe */
     .priv_class     = &demuxer_class,
 };
+
+/*
+ 
+ +-------------------+
+
+ | ID3v2 Tag(可选)   |
+
+ +-------------------+
+
+ | MP3 Frame 1       |
+
+ +-------------------+
+
+ | MP3 Frame 2       |
+
+ +-------------------+
+
+ | MP3 Frame 3       |
+
+ +-------------------+
+
+ | ...               |
+
+ +-------------------+
+
+ | MP3 Frame N       |
+
+ +-------------------+
+
+ | ID3v1 Tag(可选)   |
+
+ +-------------------+
+ 
+ 
+ */

@@ -244,10 +244,14 @@ void av_free(void *ptr)
 
 void av_freep(void *arg)
 {
+    /*
+     void *val = NULL;
+     free(val);  此时是安全的吗
+     */
     void *val;
-
-    memcpy(&val, arg, sizeof(val));
+    memcpy(&val, arg, sizeof(val));//val = *(void **)arg;
     memcpy(arg, &(void *){ NULL }, sizeof(val));
+    //如果下次  重复 val = NULL;
     av_free(val);
 }
 

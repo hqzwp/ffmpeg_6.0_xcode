@@ -116,6 +116,7 @@ static inline double av_q2d(AVRational a){
  * @param[in]      den Source denominator
  * @param[in]      max Maximum allowed values for `dst_num` & `dst_den`
  * @return 1 if the operation is exact, 0 otherwise
+ * 用来把分数 约简（化简）成最简形式，并保证分子分母不超过给定上限。
  */
 int av_reduce(int *dst_num, int *dst_den, int64_t num, int64_t den, int64_t max);
 

@@ -371,6 +371,8 @@ typedef struct AVFrame {
      *
      * @attention In case of video, line size values can be negative to achieve
      * a vertically inverted iteration over image lines.
+     *
+     * linesize[0] < 0 时 data[0] 指向该分量的末尾
      */
     int linesize[AV_NUM_DATA_POINTERS];
 

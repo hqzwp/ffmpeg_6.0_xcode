@@ -98,9 +98,8 @@ typedef struct FFFormatContext {
                              int flush, int has_packet);
 
     /**
-     * This buffer is only needed when packets were already buffered but
-     * not decoded, for example to get the codec parameters in MPEG
-     * streams.
+       1，avformat_find_stream_info 时如果没有特别指定  此时就会缓存
+       2，读出packet之后需要重新  如果需要重新生成pts  此时需要缓存
      */
     PacketList packet_buffer;
 
@@ -112,6 +111,7 @@ typedef struct FFFormatContext {
      * This buffer is used for buffering packets until the codec can
      * be identified, as parsing cannot be done without knowing the
      * codec.
+     *  临时存储探测时的packet 
      */
     PacketList raw_packet_buffer;
     /**
@@ -228,7 +228,9 @@ typedef struct FFStream {
 
     /* the context for extracting extradata in find_stream_info()
      * inited=1/bsf=NULL signals that extracting is not possible (codec not
-     * supported) */
+     * supported)
+     extradata（如 H.264 的 SPS/PPS）
+     */
     struct {
         struct AVBSFContext *bsf;
         int inited;
@@ -257,6 +259,8 @@ typedef struct FFStream {
     int64_t interleaver_chunk_duration;
 
     /**
+     * 是否需要探测codec
+     * 内部自动维护，需要时 demuxer 打开，探完关掉；应用层不用管。
      * stream probing state
      * -1   -> probing finished
      *  0   -> no probing requested
@@ -318,6 +322,7 @@ typedef struct FFStream {
 
     /**
      * Internal data to check for wrapping of the time stamp
+     *  当pts位数不够时 此值可以作为参考值 下一次pts循环时做累加使用
      */
     int64_t pts_wrap_reference;
 
@@ -330,6 +335,8 @@ typedef struct FFStream {
      * If the first time stamp is near the wrap point, the wrap offset
      * will be subtracted, which will create negative time stamps.
      * Otherwise the offset will be added.
+     *
+     *  pts_wrap_reference 的使用方式
      */
     int pts_wrap_behavior;
 
@@ -438,6 +445,7 @@ do {\
 
 void ff_flush_packet_queue(AVFormatContext *s);
 
+int ff_match_url_ext(const char *url, const char *extensions);
 /**
  * Automatically create sub-directories
  *
@@ -604,7 +612,7 @@ void ff_remove_stream(AVFormatContext *s, AVStream *st);
 unsigned int ff_codec_get_tag(const AVCodecTag *tags, enum AVCodecID id);
 
 enum AVCodecID ff_codec_get_id(const AVCodecTag *tags, unsigned int tag);
-
+//判断某个 codec 是不是“纯帧内”编码（只有 I 帧，没有 P/B 帧依赖）。
 int ff_is_intra_only(enum AVCodecID id);
 
 /**

@@ -177,6 +177,7 @@ typedef struct AVFilter {
      * NULL if there are no (static) inputs. Instances of filters with
      * AVFILTER_FLAG_DYNAMIC_INPUTS set may have more inputs than present in
      * this list.
+     * input pad = 数据 进入 这个滤镜（从上游 link 来）
      */
     const AVFilterPad *inputs;
 
@@ -186,6 +187,7 @@ typedef struct AVFilter {
      * NULL if there are no (static) outputs. Instances of filters with
      * AVFILTER_FLAG_DYNAMIC_OUTPUTS set may have more outputs than present in
      * this list.
+     output pad = 数据 离开 这个滤镜（去下游 link）
      */
     const AVFilterPad *outputs;
 

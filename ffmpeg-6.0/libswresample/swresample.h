@@ -378,8 +378,8 @@ int64_t swr_next_pts(struct SwrContext *s, int64_t pts);
  * @param[in,out] s             allocated Swr context. If it is not initialized,
  *                              or SWR_FLAG_RESAMPLE is not set, swr_init() is
  *                              called with the flag set.
- * @param[in]     sample_delta  delta in PTS per sample
- * @param[in]     compensation_distance number of samples to compensate for
+ * @param[in]     sample_delta  delta in PTS per sample  要多/少 几个 输出 sample（总量）
+ * @param[in]     compensation_distance number of samples to compensate for  在 多长 的输出里匀完这个差（通常是本帧输出长度）
  * @return    >= 0 on success, AVERROR error codes if:
  *            @li @c s is NULL,
  *            @li @c compensation_distance is less than 0,

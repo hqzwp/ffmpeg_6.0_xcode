@@ -41,7 +41,7 @@ typedef struct URLContext {
     char *filename;             /**< specified URL */
     int flags;
     int max_packet_size;        /**< if non zero, the stream is packetized with this max packet size */
-    int is_streamed;            /**< true if streamed (no seek possible), default = false */
+    int is_streamed;            /**< true if streamed (no seek possible), default = false （管道、直播、RTMP、很多 UDP/HTTP 直播） */
     int is_connected;
     AVIOInterruptCB interrupt_callback;
     int64_t rw_timeout;         /**< maximum time to wait for (network) read/write operation completion, in mcs */
@@ -89,6 +89,7 @@ typedef struct URLProtocol {
     const AVClass *priv_data_class;
     int priv_data_size;
     int flags;
+    //访问权限
     int (*url_check)(URLContext *h, int mask);
     int (*url_open_dir)(URLContext *h);
     int (*url_read_dir)(URLContext *h, AVIODirEntry **next);

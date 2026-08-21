@@ -51,18 +51,35 @@ struct AVAESCTR;
 /* the QuickTime file format is quite convoluted...
  * it has lots of index tables, each indexing something in another one...
  * Here we just use what is needed to read the chunks
+ 用来计算DTS
+ stts box 中可能存在多对{sample_count1 ..., sample_delta1 ...}
+ eg: [10,20], [30,40]
+ 总共有30个sample 前10个sample间隔30  后20个sample间隔40
+ DTS 计算 0 ,30 ,60,90,120,150,180,210,240,270, 310, 350, 390,
  */
-
 typedef struct MOVStts {
     unsigned int count;
     unsigned int duration;
 } MOVStts;
 
+//上面的DTS + 这里的count = PTS
 typedef struct MOVCtts {
     unsigned int count;
     int duration;
 } MOVCtts;
 
+//sample跟chunk的关系
+/*
+ eg:
+ firstChunk             [1, 2]
+ samplesPerChunk        [2, 1]
+ sampleDescriptionIndex [1, 1]
+ 
+ 共两列 也就是两个chunk
+ firstChunk 1表示从第一个chunk开始 每一个chunk对应2个sample  指定这个 Chunk 里的 Sample 使用 stsd（Sample Description Box）中的第1个描述。
+ firstChunk 2表示从第二chunk个开始 每一个chunk对应1个sample  指定这个 Chunk 里的 Sample 使用 stsd（Sample Description Box）中的第1个描述。
+ 
+ */
 typedef struct MOVStsc {
     int first;
     int count;
@@ -189,11 +206,12 @@ typedef struct MOVStreamContext {
     int ctts_sample;
     unsigned int sample_size; ///< may contain value calculated from stsd or value from stsz atom
     unsigned int stsz_sample_size; ///< always contains sample size from stsz atom
+    ///<
     unsigned int sample_count;
     int *sample_sizes;
     int keyframe_absent;
-    unsigned int keyframe_count;
-    int *keyframes;
+    unsigned int keyframe_count; //关键帧
+    int *keyframes; //关键帧索引
     int time_scale;
     int64_t time_offset;  ///< time offset of the edit list entries
     int64_t min_corrected_pts;  ///< minimum Composition time shown by the edits excluding empty edits.
@@ -432,3 +450,107 @@ struct MP4TrackKindMapping {
 extern const struct MP4TrackKindMapping ff_mov_track_kind_table[];
 
 #endif /* AVFORMAT_ISOM_H */
+
+
+/*
+ +--------------------------------------------------------------------------------+
+ | ftyp                                   | 文件类型(File Type)                    |
+ |                                        | 指定 MP4 品牌、兼容标准                |
+ +--------------------------------------------------------------------------------+
+ | free (可选)                            | 空闲空间                              |
+ |                                        | 用于后续修改文件，播放器忽略           |
+ +--------------------------------------------------------------------------------+
+ | mdat                                   | Media Data                            |
+ |                                        | 存放音频、视频、字幕等原始编码数据      |
+ +--------------------------------------------------------------------------------+
+ | moov                                   | Movie Box                             |
+ |                                        | 保存整个文件的元数据、索引、时间轴      |
+ |                                                                                |
+ |   + mvhd                               | Movie Header                          |
+ |   |                                    | 整个文件时间基、总时长、播放速率等      |
+ |   |                                                                           |
+ |   + trak (Video Track)                 | 一路视频轨                            |
+ |   |                                                                           |
+ |   |   + tkhd                           | Track Header                          |
+ |   |   |                                | Track ID、宽高、时长、Layer 等信息     |
+ |   |                                                                       |
+ |   |   + mdia                           | Media Box                             |
+ |   |       |                            | 描述该 Track 的媒体信息               |
+ |   |                                                                       |
+ |   |       + mdhd                       | Media Header                          |
+ |   |       |                            | Track 时间基(timescale)、时长          |
+ |   |                                                                       |
+ |   |       + hdlr                       | Handler Reference                     |
+ |   |       |                            | Track 类型(vide/soun/subt...)         |
+ |   |                                                                       |
+ |   |       + minf                       | Media Information                     |
+ |   |           |                        | 视频/音频相关信息                     |
+ |   |                                                                   |
+ |   |           + vmhd                   | Video Media Header                    |
+ |   |           |                        | 视频播放属性                          |
+ |   |           |                        | (音频对应 smhd)                       |
+ |   |                                                                   |
+ |   |           + dinf                   | Data Information                      |
+ |   |           |                        | 数据引用(Data Reference)              |
+ |   |                                                                   |
+ |   |           + stbl                   | Sample Table                          |
+ |   |                |                   | Sample 索引表，是 MP4 最重要部分       |
+ |   |                                                               |
+ |   |                + stsd              | Sample Description                    |
+ |   |                |                   | 编码格式(avc1/hvc1/mp4a...)           |
+ |   |                | └── avc1
+ 
+ │                   └── avcC
+
+ │                       ├── SPS
+
+ │                       └── PPS                  | SPS/PPS、AudioSpecificConfig 等       |
+ |   |                                                               |
+ |   |                + stts              | Decoding Time To Sample               |
+ |   |                |                   | DTS 时间表                            |
+ |   |                |                   | 每个 Sample 的解码时间间隔            |
+ |   |                                                               |
+ |   |                + ctts (可选)       | Composition Time To Sample            |
+ |   |                |                   | PTS-DTS 偏移                          |
+ |   |                |                   | B Frame 时用于计算显示时间            |
+ |   |                                                               |
+ |   |                + stss (可选)       | Sync Sample                           |
+ |   |                |                   | 关键帧(I Frame)索引                   |
+ |   |                |                   | Seek 时首先查询                       |
+ |   |                                                               |
+ |   |                + stsc              | Sample To Chunk                       |
+ |   |                |                   | Sample 与 Chunk 的对应关系            |
+ |   |                                                               |
+ |   |                + stsz / stz2       | Sample Size                           |
+ |   |                |                   | 每个 Sample 的大小(Byte)              |
+ |   |                                                               |
+ |   |                + stco / co64       | Chunk Offset                          |
+ |   |                |                   | 每个 Chunk 在 mdat 中的文件偏移        |
+ |   |                |                   | co64 为 64 位偏移                     |
+ |   |                                                               |
+ |   |                + sgpd (可选)       | Sample Group Description              |
+ |   |                |                   | Sample 分组描述                       |
+ |   |                                                               |
+ |   |                + sbgp (可选)       | Sample To Group                       |
+ |   |                |                   | Sample 与 Group 的映射                |
+ |   |                                                               |
+ |   |                + sdtp (可选)       | Sample Dependency Type                |
+ |   |                |                   | Sample 依赖关系                       |
+ |   |                                                               |
+ |   |                + stdp (可选)       | Sample Degradation Priority           |
+ |   |                |                   | Sample 优先级                         |
+ |   |                                                               |
+ |   |                + padb (可选)       | Sample Padding Bits                   |
+ |   |                |                   | Padding 信息                          |
+ |   |                                                               |
+ |   |                + subs (可选)       | Subsample Information                 |
+ |   |                |                   | 子 Sample 信息(常见于 HEVC、加密等)    |
+ |   |                                                               |
+ |   + trak (Audio Track)                 | 音频 Track                            |
+ |       |                                | 与视频结构基本一致                    |
+ |       |                                | vmhd → smhd                           |
+ |       |                                | stsd 中通常为 mp4a                    |
+ |       |                                | AudioSpecificConfig 保存 AAC 参数     |
+ +--------------------------------------------------------------------------------+
+ 
+ */

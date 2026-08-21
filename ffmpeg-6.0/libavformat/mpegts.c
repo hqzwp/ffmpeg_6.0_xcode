@@ -64,7 +64,9 @@
 #define PROBE_PACKET_MARGIN 5
 
 enum MpegTSFilterType {
+    //av 数据过滤
     MPEGTS_PES,
+    //表过滤
     MPEGTS_SECTION,
     MPEGTS_PCR,
 };
@@ -174,7 +176,7 @@ struct MpegTSContext {
     struct Program *prg;
 
     int8_t crc_validity[NB_PID_MAX];
-    /** filters for various streams specified by PMT + for the PAT and PMT */
+    /** filters for various streams specified by PMT + for the PAT and PMT    PAT / PMT / SDT */
     MpegTSFilter *pids[NB_PID_MAX];
     int current_pid;
 
@@ -2307,7 +2309,7 @@ static int is_pes_stream(int stream_type, uint32_t prog_reg_desc)
     return !(stream_type == 0x13 ||
              (stream_type == 0x86 && prog_reg_desc == AV_RL32("CUEI")) );
 }
-
+//每一个节目 里面有多个流
 static void pmt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len)
 {
     MpegTSContext *ts = filter->u.section_filter.opaque;
@@ -2527,7 +2529,7 @@ out:
     for (i = 0; i < mp4_descr_count; i++)
         av_free(mp4_descr[i].dec_config_descr);
 }
-
+//节目表
 static void pat_cb(MpegTSFilter *filter, const uint8_t *section, int section_len)
 {
     MpegTSContext *ts = filter->u.section_filter.opaque;
@@ -2758,7 +2760,7 @@ static void sdt_cb(MpegTSFilter *filter, const uint8_t *section, int section_len
 static int parse_pcr(int64_t *ppcr_high, int *ppcr_low,
                      const uint8_t *packet);
 
-/* handle one TS packet */
+/* handle one TS packet 处理 一个已经对齐的 188 字节 TS 包：拆包头，按 PID 交给 section 或 PES */
 static int handle_packet(MpegTSContext *ts, const uint8_t *packet, int64_t pos)
 {
     MpegTSFilter *tss;
@@ -3135,7 +3137,7 @@ static int mpegts_read_header(AVFormatContext *s)
         av_log(ts->stream, AV_LOG_TRACE, "tuning done\n");
 
         s->ctx_flags |= AVFMTCTX_NOHEADER;
-    } else {
+    } else {//row
         AVStream *st;
         int pcr_pid, pid, nb_packets, nb_pcrs, ret, pcr_l;
         int64_t pcrs[2], pcr_h;
@@ -3449,3 +3451,63 @@ const AVInputFormat ff_mpegtsraw_demuxer = {
     .flags          = AVFMT_SHOW_IDS | AVFMT_TS_DISCONT,
     .priv_class     = &mpegtsraw_class,
 };
+/*
+ TS packet   188 bytes
+ TS packet   188 bytes
+ TS packet   188 bytes
+ TS packet   188 bytes
+ TS packet   188 bytes
+ ...
+ 
+ ┌─────────────── 188 bytes ───────────────┐
+ │ 4 byte header │ adaptation │ payload    │
+ └─────────────────────────────────────────┘
+ 
+ 4 字节 Header
+ ┌──────┬───────┬───────┬───────────┐
+ │ sync │ flags │ PID   │ control   │
+ └──────┴───────┴───────┴───────────┘
+ 总体逻辑
+ 整个TS 可能有多个节目   每个节目可能包含多个流
+ 
+ 
+ 节目表的packet的pid == 0  这种packet中存放PAT（多个节目）
+ Program 1 → PMT PID 0x100
+ Program 2 → PMT PID 0x200
+ 
+ 
+ pid == 0x100 中存放pmt  流信息
+ PMT
+ ├── Video → PID 0x101
+ └── Audio → PID 0x102
+ 
+ pid == 0x200 中存放pmt  流信息
+ PMT
+ ├── Video → PID 0x101
+ └── Audio → PID 0x102
+ 
+ 
+ PID 0
+  │
+  ▼
+ PAT
+  │
+  ├── Program 1 → PMT PID 0x100
+  │                  │
+  │                  ▼
+  │                 PMT
+  │                  ├── Video → PID 0x101
+  │                  └── Audio → PID 0x102
+  │
+  └── Program 2 → PMT PID 0x200
+                     │
+                     ▼
+                    PMT
+                     ├── Video → PID 0x201
+                     └── Audio → PID 0x202
+ 
+ PES: (一桢可能包含多个 audio、video pcket)
+ section (PAT / PMT / SDT  类型的packet)
+ 
+ 
+ */

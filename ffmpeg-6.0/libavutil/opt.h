@@ -303,10 +303,30 @@ typedef struct AVOption {
      * The logical unit to which the option belongs. Non-constant
      * options and corresponding named constants share the same
      * unit. May be NULL.
-     {"idct", "select IDCT implementation", OFFSET(idct_algo), AV_OPT_TYPE_INT, {.i64 = DEFAULT }, 0, INT_MAX, V|E|D, "idct"},
-     {"auto", NULL, 0, AV_OPT_TYPE_CONST, {.i64 = FF_IDCT_AUTO }, INT_MIN, INT_MAX, V|E|D, "idct"},
-     这里的auto 是idct 的子选项 中间通过 unit 做关联
-     -c:v mpeg2video -idct auto
+     
+     static const AVOption stream_options[] = {
+         { "disposition", NULL, offsetof(AVStream, disposition), AV_OPT_TYPE_FLAGS, { .i64 = 0 },
+             .flags = AV_OPT_FLAG_ENCODING_PARAM, .unit = "disposition" },
+             { "default",            .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_DEFAULT           },    .unit = "disposition" },
+             { "dub",                .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_DUB               },    .unit = "disposition" },
+             { "original",           .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_ORIGINAL          },    .unit = "disposition" },
+             { "comment",            .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_COMMENT           },    .unit = "disposition" },
+             { "lyrics",             .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_LYRICS            },    .unit = "disposition" },
+             { "karaoke",            .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_KARAOKE           },    .unit = "disposition" },
+             { "forced",             .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_FORCED            },    .unit = "disposition" },
+             { "hearing_impaired",   .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_HEARING_IMPAIRED  },    .unit = "disposition" },
+             { "visual_impaired",    .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_VISUAL_IMPAIRED   },    .unit = "disposition" },
+             { "clean_effects",      .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_CLEAN_EFFECTS     },    .unit = "disposition" },
+             { "attached_pic",       .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_ATTACHED_PIC      },    .unit = "disposition" },
+             { "timed_thumbnails",   .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_TIMED_THUMBNAILS  },    .unit = "disposition" },
+             { "captions",           .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_CAPTIONS          },    .unit = "disposition" },
+             { "descriptions",       .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_DESCRIPTIONS      },    .unit = "disposition" },
+             { "metadata",           .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_METADATA          },    .unit = "disposition" },
+             { "dependent",          .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_DEPENDENT         },    .unit = "disposition" },
+             { "still_image",        .type = AV_OPT_TYPE_CONST, { .i64 = AV_DISPOSITION_STILL_IMAGE       },    .unit = "disposition" },
+         { NULL }
+     };
+     除了第一个之外 其他的都是第一个的选项参数 
      */
     const char *unit;
 } AVOption;
@@ -719,7 +739,7 @@ int av_opt_set_dict_val(void *obj, const char *name, const AVDictionary *val, in
  * @param name   name of the binary option
  * @param val    pointer to an integer list (must have the correct type with
  *               regard to the contents of the list)
- * @param term   list terminator (usually 0 or -1)
+ * @param term   list terminator (usually 0 or -1)  结束标记
  * @param flags  search flags
  */
 #define av_opt_set_int_list(obj, name, val, term, flags) \

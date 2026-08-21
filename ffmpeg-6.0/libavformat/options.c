@@ -68,7 +68,7 @@ enum {
 };
 
 #define ITER_STATE_SHIFT 16
-
+//AVFormatContext 包含三种AVClass AVIOClass  AVOutputFormat  AVInputFormat
 static const AVClass *format_child_class_iterate(void **iter)
 {
     // we use the low 16 bits of iter as the value to be passed to
@@ -204,7 +204,27 @@ const AVClass *avformat_get_class(void)
 {
     return &av_format_context_class;
 }
+/*
+ disposition 表示这条流在容器里的角色/用途标记（一组 flag），不是编码参数。
 
+ 常见含义：
+
+ 标志    意思
+ default
+ 默认选中的音轨/字幕
+ forced
+ 强制字幕（如外语台词）
+ hearing_impaired
+ 听障字幕
+ visual_impaired
+ 视障音轨描述
+ attached_pic
+ 封面图（不是普通视频轨）
+ lyrics / karaoke
+ 歌词 / 卡拉 OK
+ dub / original
+ 配音 / 原声
+ */
 static const AVOption stream_options[] = {
     { "disposition", NULL, offsetof(AVStream, disposition), AV_OPT_TYPE_FLAGS, { .i64 = 0 },
         .flags = AV_OPT_FLAG_ENCODING_PARAM, .unit = "disposition" },

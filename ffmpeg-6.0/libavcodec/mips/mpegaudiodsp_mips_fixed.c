@@ -175,7 +175,7 @@ static void ff_mpadsp_apply_window_mips_fixed(int32_t *synth_buf, int32_t *windo
      );
 
      samples += incr;
-
+ 
     /* we calculate two samples at the same time to avoid one memory
        access per two sample */
 
