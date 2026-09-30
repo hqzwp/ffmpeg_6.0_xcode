@@ -99,7 +99,8 @@ static int build_def_list(H264Ref *def, int def_len,
 
     return index;
 }
-
+//从 src[] 里按 POC 选出一批参考图，写入 sorted[]，顺序由 dir 决定。
+//0 = 升序；1 = 降序
 static int add_sorted(H264Picture **sorted, H264Picture * const *src,
                       int len, int limit, int dir)
 {

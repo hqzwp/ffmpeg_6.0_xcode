@@ -619,7 +619,20 @@
 		F31B3F832F35F1D000C377AC /* ac3tab.c in Sources */ = {isa = PBXBuildFile; fileRef = 90A4C82D2A7F2C67009A3278 /* ac3tab.c */; };
 		F31B3F8B2F35F23500C377AC /* libavutil_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F31B3E862F3496DB00C377AC /* libavutil_ios.a */; };
 		F31B3FCA2F35F36D00C377AC /* libx264_xcode_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F31B3FC92F35F35400C377AC /* libx264_xcode_ios.a */; };
-		F326F51E2FEA98AE006E2781 /* ffmpeg.c in Sources */ = {isa = PBXBuildFile; fileRef = 90A4B5D72A7F2C4B009A3278 /* ffmpeg.c */; };
+		F332D16630651C8A00DC4574 /* libSDL2-2.0.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = F34746002FC3E2C000BDD3EC /* libSDL2-2.0.0.dylib */; };
+		F332D16730651C8A00DC4574 /* libswscale.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A36D1D2A80F257003864E9 /* libswscale.a */; };
+		F332D16830651C8A00DC4574 /* libbz2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A4D0BA2A7F385A009A3278 /* libbz2.tbd */; };
+		F332D16930651C8A00DC4574 /* libavformat.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90B10CDB2A8395AF00BB4F4A /* libavformat.a */; };
+		F332D16A30651C8A00DC4574 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 90D074D92A8C621500209F22 /* libz.tbd */; };
+		F332D16B30651C8A00DC4574 /* libswresample.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A36D022A80EE0B003864E9 /* libswresample.a */; };
+		F332D16C30651C8A00DC4574 /* libm.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 90D074D72A8C61D900209F22 /* libm.tbd */; };
+		F332D16D30651C8A00DC4574 /* libavdevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A36CEB2A80E93C003864E9 /* libavdevice.a */; };
+		F332D16E30651C8A00DC4574 /* libiconv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A4D0B82A7F3845009A3278 /* libiconv.tbd */; };
+		F332D16F30651C8A00DC4574 /* libavutil.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A4D0562A7F2C8D009A3278 /* libavutil.a */; };
+		F332D17030651C8A00DC4574 /* libavfilter.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90D074E22A8C635E00209F22 /* libavfilter.a */; };
+		F332D17130651C8A00DC4574 /* libavcodec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90B10D0A2A83A8A800BB4F4A /* libavcodec.a */; };
+		F332D17430651C8A00DC4574 /* libSDL2-2.0.0.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = F34746002FC3E2C000BDD3EC /* libSDL2-2.0.0.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		F332D17930651CD300DC4574 /* cabac.c in Sources */ = {isa = PBXBuildFile; fileRef = 90A4C9132A7F2C67009A3278 /* cabac.c */; };
 		F33E27662FCD8E60002CB460 /* aacdec.c in Sources */ = {isa = PBXBuildFile; fileRef = 90A4B7F22A7F2C4C009A3278 /* aacdec.c */; };
 		F34745E32FC3DE4000BDD3EC /* libavcodec.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90B10D0A2A83A8A800BB4F4A /* libavcodec.a */; };
 		F34745E62FC3DE4000BDD3EC /* libavdevice.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A36CEB2A80E93C003864E9 /* libavdevice.a */; };
@@ -723,6 +736,55 @@
 			remoteGlobalIDString = F31B3E2E2F3496DB00C377AC;
 			remoteInfo = avutil_ios;
 		};
+		F332D15430651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90B10D092A83A8A800BB4F4A;
+			remoteInfo = avcodec;
+		};
+		F332D15630651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90A36CEA2A80E93C003864E9;
+			remoteInfo = avdevice;
+		};
+		F332D15830651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90B10CDA2A8395AF00BB4F4A;
+			remoteInfo = avformat;
+		};
+		F332D15A30651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90A4D0552A7F2C8D009A3278;
+			remoteInfo = avutil;
+		};
+		F332D15C30651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90A36D012A80EE0B003864E9;
+			remoteInfo = swresample;
+		};
+		F332D15E30651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90A36D1C2A80F257003864E9;
+			remoteInfo = swscale;
+		};
+		F332D16030651C8A00DC4574 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 90D074E12A8C635D00209F22;
+			remoteInfo = avfilter;
+		};
 		F34745E42FC3DE4000BDD3EC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 90A4B0492A7F2B42009A3278 /* Project object */;
@@ -801,6 +863,26 @@
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
+		};
+		F332D17230651C8A00DC4574 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		F332D17330651C8A00DC4574 /* Embed Libraries */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F332D17430651C8A00DC4574 /* libSDL2-2.0.0.dylib in Embed Libraries */,
+			);
+			name = "Embed Libraries";
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F34745D92FC3DDE900BDD3EC /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -8338,9 +8420,15 @@
 		F31B3FC92F35F35400C377AC /* libx264_xcode_ios.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libx264_xcode_ios.a; path = "ffmpeg-6.0/3thrparty/libs/libx264_xcode_ios.a"; sourceTree = "<group>"; };
 		F326F51C2FEA9840006E2781 /* clock_demo.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = clock_demo.c; sourceTree = "<group>"; };
 		F326F51D2FEA9840006E2782 /* avio_demo.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = avio_demo.c; sourceTree = "<group>"; };
+		F332D17830651C8A00DC4574 /* cabac_t */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = cabac_t; sourceTree = BUILT_PRODUCTS_DIR; };
 		F34745DB2FC3DDE900BDD3EC /* ffplay */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ffplay; sourceTree = BUILT_PRODUCTS_DIR; };
 		F34745FC2FC3DEF400BDD3EC /* libSDL-1.2.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSDL-1.2.0.dylib"; path = "../../../../../../opt/homebrew/Cellar/sdl12-compat/1.2.76/lib/libSDL-1.2.0.dylib"; sourceTree = "<group>"; };
 		F34746002FC3E2C000BDD3EC /* libSDL2-2.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSDL2-2.0.0.dylib"; path = "../../../../../../opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2-2.0.0.dylib"; sourceTree = "<group>"; };
+		F369D13B3046A371000C9110 /* h264_debug_example.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = h264_debug_example.c; sourceTree = "<group>"; };
+		F369D13C3046A371000C9110 /* H264编码原理详解.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "H264编码原理详解.md"; sourceTree = "<group>"; };
+		F369D13D3046A371000C9110 /* H264关键代码位置.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "H264关键代码位置.md"; sourceTree = "<group>"; };
+		F369D13E3046A371000C9110 /* H264快速参考卡.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "H264快速参考卡.md"; sourceTree = "<group>"; };
+		F369D13F3046A371000C9110 /* H264学习实践指南.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "H264学习实践指南.md"; sourceTree = "<group>"; };
 		F37CA1F83023307200ED784B /* libmp3lame.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmp3lame.a; path = ../../../../../../opt/homebrew/Cellar/lame/3.100/lib/libmp3lame.a; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -8483,6 +8571,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F332D16530651C8A00DC4574 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F332D16630651C8A00DC4574 /* libSDL2-2.0.0.dylib in Frameworks */,
+				F332D16730651C8A00DC4574 /* libswscale.a in Frameworks */,
+				F332D16830651C8A00DC4574 /* libbz2.tbd in Frameworks */,
+				F332D16930651C8A00DC4574 /* libavformat.a in Frameworks */,
+				F332D16A30651C8A00DC4574 /* libz.tbd in Frameworks */,
+				F332D16B30651C8A00DC4574 /* libswresample.a in Frameworks */,
+				F332D16C30651C8A00DC4574 /* libm.tbd in Frameworks */,
+				F332D16D30651C8A00DC4574 /* libavdevice.a in Frameworks */,
+				F332D16E30651C8A00DC4574 /* libiconv.tbd in Frameworks */,
+				F332D16F30651C8A00DC4574 /* libavutil.a in Frameworks */,
+				F332D17030651C8A00DC4574 /* libavfilter.a in Frameworks */,
+				F332D17130651C8A00DC4574 /* libavcodec.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F34745D82FC3DDE900BDD3EC /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -8508,11 +8615,13 @@
 		90A4B0482A7F2B42009A3278 = {
 			isa = PBXGroup;
 			children = (
+				F369D13A3046A335000C9110 /* h264 */,
 				90D075562A8CB32B00209F22 /* ffmpeg.entitlements */,
 				90A4B0872A7F2C47009A3278 /* ffmpeg-6.0 */,
 				90A4B0522A7F2B42009A3278 /* Products */,
 				90A4D0B72A7F3845009A3278 /* Frameworks */,
 				F34745DB2FC3DDE900BDD3EC /* ffplay */,
+				F332D17830651C8A00DC4574 /* cabac_t */,
 			);
 			sourceTree = "<group>";
 		};
@@ -9996,17 +10105,22 @@
 				90A4B5E72A7F2C4B009A3278 /* url.c */,
 				90A4B7892A7F2C4C009A3278 /* mux.c */,
 				90A4B6592A7F2C4B009A3278 /* mux.h */,
+				90A4B7402A7F2C4C009A3278 /* dump.c */,
+				90A4B7262A7F2C4C009A3278 /* seek.c */,
 				90A4B7442A7F2C4C009A3278 /* utils.c */,
 				90A4B6FB2A7F2C4C009A3278 /* mux_utils.c */,
-				90A4B7DC2A7F2C4C009A3278 /* file.c */,
 				90A4B6CB2A7F2C4B009A3278 /* hls.c */,
+				90A4B6D72A7F2C4B009A3278 /* mov.c */,
+				90A4B7A62A7F2C4C009A3278 /* flvdec.c */,
+				90A4B66B2A7F2C4B009A3278 /* mpegts.c */,
+				90A4B7DC2A7F2C4C009A3278 /* file.c */,
+				90A4B6412A7F2C4B009A3278 /* http.h */,
+				90A4B7A52A7F2C4C009A3278 /* http.c */,
 				90A4B5DE2A7F2C4B009A3278 /* swf.c */,
 				90A4B5DF2A7F2C4B009A3278 /* prompeg.c */,
 				90A4B5E02A7F2C4B009A3278 /* aaxdec.c */,
 				90A4B5E12A7F2C4B009A3278 /* apm.c */,
 				90A4B5DD2A7F2C4B009A3278 /* dovi_isom.c */,
-				90A4B7402A7F2C4C009A3278 /* dump.c */,
-				90A4B7262A7F2C4C009A3278 /* seek.c */,
 				90A4B5E22A7F2C4B009A3278 /* wtvdec.c */,
 				90A4B5E32A7F2C4B009A3278 /* rmdec.c */,
 				90A4B5E42A7F2C4B009A3278 /* hls_sample_encryption.c */,
@@ -10098,7 +10212,6 @@
 				90A4B63E2A7F2C4B009A3278 /* hca.c */,
 				90A4B63F2A7F2C4B009A3278 /* libssh.c */,
 				90A4B6402A7F2C4B009A3278 /* libsrt.c */,
-				90A4B6412A7F2C4B009A3278 /* http.h */,
 				90A4B6422A7F2C4B009A3278 /* mvi.c */,
 				90A4B6432A7F2C4B009A3278 /* tee.c */,
 				90A4B6442A7F2C4B009A3278 /* rtpdec_h263.c */,
@@ -10139,7 +10252,6 @@
 				90A4B6682A7F2C4B009A3278 /* rtmphttp.c */,
 				90A4B6692A7F2C4B009A3278 /* srtpproto.c */,
 				90A4B66A2A7F2C4B009A3278 /* w64.h */,
-				90A4B66B2A7F2C4B009A3278 /* mpegts.c */,
 				90A4B66C2A7F2C4B009A3278 /* afc.c */,
 				90A4B66D2A7F2C4B009A3278 /* ip.c */,
 				90A4B66E2A7F2C4B009A3278 /* avs2dec.c */,
@@ -10233,7 +10345,6 @@
 				90A4B6D42A7F2C4B009A3278 /* mxfdec.c */,
 				90A4B6D52A7F2C4B009A3278 /* supdec.c */,
 				90A4B6D62A7F2C4B009A3278 /* dtsdec.c */,
-				90A4B6D72A7F2C4B009A3278 /* mov.c */,
 				90A4B6D82A7F2C4B009A3278 /* rtpdec_vp8.c */,
 				90A4B6D92A7F2C4B009A3278 /* mj2kdec.c */,
 				90A4B6DA2A7F2C4B009A3278 /* asfcrypt.h */,
@@ -10432,8 +10543,6 @@
 				90A4B7A22A7F2C4C009A3278 /* nullenc.c */,
 				90A4B7A32A7F2C4C009A3278 /* nspdec.c */,
 				90A4B7A42A7F2C4C009A3278 /* dca_sample_rate_tab.c */,
-				90A4B7A52A7F2C4C009A3278 /* http.c */,
-				90A4B7A62A7F2C4C009A3278 /* flvdec.c */,
 				90A4B7A72A7F2C4C009A3278 /* vc1test.c */,
 				90A4B7A82A7F2C4C009A3278 /* hashenc.c */,
 				90A4B7A92A7F2C4C009A3278 /* icodec.c */,
@@ -16620,6 +16729,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		F369D13A3046A335000C9110 /* h264 */ = {
+			isa = PBXGroup;
+			children = (
+				F369D13B3046A371000C9110 /* h264_debug_example.c */,
+				F369D13C3046A371000C9110 /* H264编码原理详解.md */,
+				F369D13D3046A371000C9110 /* H264关键代码位置.md */,
+				F369D13E3046A371000C9110 /* H264快速参考卡.md */,
+				F369D13F3046A371000C9110 /* H264学习实践指南.md */,
+			);
+			path = h264;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -16999,6 +17120,33 @@
 			productReference = F31B3F8A2F35F1D000C377AC /* libavcodec_ios.a */;
 			productType = "com.apple.product-type.library.static";
 		};
+		F332D15230651C8A00DC4574 /* cabac_t */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F332D17530651C8A00DC4574 /* Build configuration list for PBXNativeTarget "cabac_t" */;
+			buildPhases = (
+				F332D16130651C8A00DC4574 /* Sources */,
+				F332D16530651C8A00DC4574 /* Frameworks */,
+				F332D17230651C8A00DC4574 /* CopyFiles */,
+				F332D17330651C8A00DC4574 /* Embed Libraries */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F332D15330651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15530651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15730651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15930651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15B30651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15D30651C8A00DC4574 /* PBXTargetDependency */,
+				F332D15F30651C8A00DC4574 /* PBXTargetDependency */,
+			);
+			name = cabac_t;
+			packageProductDependencies = (
+			);
+			productName = ffplay;
+			productReference = F332D17830651C8A00DC4574 /* cabac_t */;
+			productType = "com.apple.product-type.tool";
+		};
 		F34745DA2FC3DDE900BDD3EC /* ffplay */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F34745E12FC3DDE900BDD3EC /* Build configuration list for PBXNativeTarget "ffplay" */;
@@ -17100,6 +17248,7 @@
 				F31B3EC82F35F17500C377AC /* avformat_ios */,
 				F31B3F0F2F35F1D000C377AC /* avcodec_ios */,
 				F34745DA2FC3DDE900BDD3EC /* ffplay */,
+				F332D15230651C8A00DC4574 /* cabac_t */,
 			);
 		};
 /* End PBXProject section */
@@ -17475,7 +17624,6 @@
 				90D0750C2A8C6B1700209F22 /* ffmpeg_mux.c in Sources */,
 				90D0750D2A8C6B5400209F22 /* thread_queue.c in Sources */,
 				90D0750E2A8C6BB300209F22 /* ffmpeg_mux_init.c in Sources */,
-				F326F51E2FEA98AE006E2781 /* ffmpeg.c in Sources */,
 				90D074D42A8C607900209F22 /* ffmpeg_opt.c in Sources */,
 				90D074D32A8C607100209F22 /* opt_common.c in Sources */,
 				90D0750B2A8C6ADB00209F22 /* sync_queue.c in Sources */,
@@ -17842,6 +17990,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F332D16130651C8A00DC4574 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F332D17930651CD300DC4574 /* cabac.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F34745D72FC3DDE900BDD3EC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -17884,6 +18040,41 @@
 			isa = PBXTargetDependency;
 			target = F31B3E2E2F3496DB00C377AC /* avutil_ios */;
 			targetProxy = F31B3F8C2F35F23500C377AC /* PBXContainerItemProxy */;
+		};
+		F332D15330651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90B10D092A83A8A800BB4F4A /* avcodec */;
+			targetProxy = F332D15430651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15530651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90A36CEA2A80E93C003864E9 /* avdevice */;
+			targetProxy = F332D15630651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15730651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90B10CDA2A8395AF00BB4F4A /* avformat */;
+			targetProxy = F332D15830651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15930651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90A4D0552A7F2C8D009A3278 /* avutil */;
+			targetProxy = F332D15A30651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15B30651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90A36D012A80EE0B003864E9 /* swresample */;
+			targetProxy = F332D15C30651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15D30651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90A36D1C2A80F257003864E9 /* swscale */;
+			targetProxy = F332D15E30651C8A00DC4574 /* PBXContainerItemProxy */;
+		};
+		F332D15F30651C8A00DC4574 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 90D074E12A8C635D00209F22 /* avfilter */;
+			targetProxy = F332D16030651C8A00DC4574 /* PBXContainerItemProxy */;
 		};
 		F34745E52FC3DE4000BDD3EC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -18634,6 +18825,54 @@
 			};
 			name = Release;
 		};
+		F332D17630651C8A00DC4574 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 85CWKC69K9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/ffmpeg-6.0",
+					/opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/opt/homebrew/Cellar/sdl12-compat/1.2.76/lib",
+					/opt/homebrew/Cellar/sdl2/2.32.10/lib,
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		F332D17730651C8A00DC4574 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 85CWKC69K9;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/ffmpeg-6.0",
+					/opt/homebrew/Cellar/sdl2/2.32.10/include/SDL2,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/opt/homebrew/Cellar/sdl12-compat/1.2.76/lib",
+					/opt/homebrew/Cellar/sdl2/2.32.10/lib,
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.4;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		F34745DF2FC3DDE900BDD3EC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -18834,6 +19073,15 @@
 			buildConfigurations = (
 				F31B3F882F35F1D000C377AC /* Debug */,
 				F31B3F892F35F1D000C377AC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F332D17530651C8A00DC4574 /* Build configuration list for PBXNativeTarget "cabac_t" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F332D17630651C8A00DC4574 /* Debug */,
+				F332D17730651C8A00DC4574 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -37,7 +37,9 @@ typedef void (*h264_biweight_func)(uint8_t *dst, uint8_t *src,
                                    int weightd, int weights, int offset);
 
 /**
- * Context for storing H.264 DSP functions
+ * Context for storing H.264 DSP functions   Digital Signal Processing
+ *
+ * 把解码/处理里那些 又重、又固定的底层运算（滤波、插值、找起始码、IDCT 等）抽成函数表，可以换成 C / SIMD / 汇编实现，逻辑代码只调函数指针。
  */
 typedef struct H264DSPContext {
     /* weighted MC */

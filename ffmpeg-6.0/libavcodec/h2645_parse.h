@@ -30,7 +30,7 @@
 #include "get_bits.h"
 
 #define MAX_MBPAIR_SIZE (256*1024) // a tighter bound could be calculated if someone cares about a few bytes
-
+//一个nal 对应一个slice
 typedef struct H2645NAL {
     const uint8_t *data;
     int size;
@@ -53,6 +53,7 @@ typedef struct H2645NAL {
 
     /**
      * H.264 only, nal_ref_idc
+     * ref_idc == 0表示 不被其他桢参考
      */
     int ref_idc;
 
@@ -71,6 +72,8 @@ typedef struct H2645NAL {
     int *skipped_bytes_pos;
 } H2645NAL;
 
+
+///去掉起始码 跟 如果遇到 00 00 03，把其中的 03 删除。
 typedef struct H2645RBSP {
     uint8_t *rbsp_buffer;
     AVBufferRef *rbsp_buffer_ref;
@@ -88,7 +91,7 @@ typedef struct H2645Packet {
 } H2645Packet;
 
 /**
- * Extract the raw (unescaped) bitstream.
+ * Extract the raw (unescaped) bitstream. 如果遇到 00 00 03，把其中的 03 删除。
  */
 int ff_h2645_extract_rbsp(const uint8_t *src, int length, H2645RBSP *rbsp,
                           H2645NAL *nal, int small_padding);

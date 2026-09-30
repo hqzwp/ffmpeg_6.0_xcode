@@ -63,7 +63,11 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-x 300 -i /Users/haixiaomian/Desktop/hsl1_disc/m.m3u8"
-            isEnabled = "YES">
+            isEnabled = "NO">
+         </CommandLineArgument>
+         <CommandLineArgument
+            argument = "-x 300 -i /Users/haixiaomian/Desktop/ff37_fmp4/index.m3u8"
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-x 300 -ss 00:00:00 -i /Users/haixiaomian/Desktop/hsl1/m.m3u8"
@@ -71,7 +75,7 @@
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-x 300  -i /Users/haixiaomian/Desktop/ff37.h264"
-            isEnabled = "NO">
+            isEnabled = "YES">
          </CommandLineArgument>
          <CommandLineArgument
             argument = " -loglevel debug   -x 300  -i /Users/haixiaomian/Desktop/ff37.mp4"

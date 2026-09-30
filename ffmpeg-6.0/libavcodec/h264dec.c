@@ -574,7 +574,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
     h->has_slice = 0;
     h->nal_unit_type= 0;
 
-    if (!(avctx->flags2 & AV_CODEC_FLAG2_CHUNKS)) {
+    if (!(avctx->flags2 & AV_CODEC_FLAG2_CHUNKS)) {//新的一桢 
         h->current_slice = 0;
         if (!h->first_field) {
             h->cur_pic_ptr = NULL;
@@ -584,9 +584,9 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
 
     if (h->nal_length_size == 4) {
         if (buf_size > 8 && AV_RB32(buf) == 1 && AV_RB32(buf+5) > (unsigned)buf_size) {
-            h->is_avc = 0;
+            h->is_avc = 0;  // 看起来像 Annex B（start code）
         }else if(buf_size > 3 && AV_RB32(buf) > 1 && AV_RB32(buf) <= (unsigned)buf_size)
-            h->is_avc = 1;
+            h->is_avc = 1;  // 看起来像 length + NAL
     }
 
     ret = ff_h2645_packet_split(&h->pkt, buf, buf_size, avctx, h->is_avc, h->nal_length_size,
@@ -605,7 +605,7 @@ static int decode_nal_units(H264Context *h, const uint8_t *buf, int buf_size)
     for (i = 0; i < h->pkt.nb_nals; i++) {
         H2645NAL *nal = &h->pkt.nals[i];
         int max_slice_ctx, err;
-
+        //丢弃没有被其他桢参考的桢
         if (avctx->skip_frame >= AVDISCARD_NONREF &&
             nal->ref_idc == 0 && nal->type != H264_NAL_SEI)
             continue;

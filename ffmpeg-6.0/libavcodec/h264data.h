@@ -34,6 +34,7 @@ extern const uint8_t ff_h264_chroma422_dc_scan[8];
 typedef struct IMbInfo {
     uint16_t type;
     uint8_t pred_mode;
+    //这个宏块里哪些 4×4/8×8 块有非零变换系数，哪些没有。
     uint8_t cbp;
 } IMbInfo;
 

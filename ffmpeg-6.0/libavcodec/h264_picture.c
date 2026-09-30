@@ -216,7 +216,7 @@ void ff_h264_set_erpic(ERPicture *dst, H264Picture *src)
 #endif /* CONFIG_ERROR_RESILIENCE */
 }
 
-int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup)
+int ff_h264_field_end(H264Context *h, H264SliceContext *sl1, int in_setup)
 {
     AVCodecContext *const avctx = h->avctx;
     H264Picture *cur = h->cur_pic_ptr;

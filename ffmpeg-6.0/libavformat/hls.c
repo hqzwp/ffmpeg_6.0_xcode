@@ -988,6 +988,8 @@ static int parse_playlist(HLSContext *c, const char *url,
             //playlist结束
             if (pls)
                 pls->finished = 1;
+        }else if (av_strstart(line, "#EXT-X-DISCONTINUITY", &ptr)){
+            // FIXME:  DISCONTINUITY
         } else if (av_strstart(line, "#EXTINF:", &ptr)) {
             /*
              #EXTINF:6.166667,
@@ -2444,7 +2446,7 @@ static int hls_read_packet(AVFormatContext *s, AVPacket *pkt)
                     ts_diff = av_rescale_rnd(pls->pkt->dts, AV_TIME_BASE,
                                             tb.den, AV_ROUND_DOWN) -
                             pls->seek_timestamp;
-                    //FIX::  大于seek 时间才能退出 否则丢弃  这可能是个bug 因为一般的ts文件开头是一个关键帧 seek到关键帧之后 再往后找 会找不到关键帧
+                    //FIXME:  大于seek 时间才能退出 否则丢弃  这可能是个bug 因为一般的ts文件开头是一个关键帧 seek到关键帧之后 再往后找 会找不到关键帧
                     if (ts_diff >= 0 && (pls->seek_flags  & AVSEEK_FLAG_ANY ||
                                         pls->pkt->flags & AV_PKT_FLAG_KEY)) {
                         pls->seek_timestamp = AV_NOPTS_VALUE;

@@ -19,7 +19,7 @@
  */
 
 #include "libavcodec/cabac_functions.h"
-#include "libavcodec/cabac.c"
+//#include "libavcodec/cabac.c"
 
 #define SIZE 10240
 

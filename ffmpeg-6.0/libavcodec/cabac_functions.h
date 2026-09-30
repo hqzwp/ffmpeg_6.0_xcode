@@ -61,6 +61,7 @@ static const uint8_t * const ff_h264_mlps_state = ff_h264_cabac_tables + H264_ML
 static const uint8_t * const ff_h264_last_coeff_flag_offset_8x8 = ff_h264_cabac_tables + H264_LAST_COEFF_FLAG_OFFSET_8x8_OFFSET;
 
 #if !defined(get_cabac_bypass) || !defined(get_cabac_terminate)
+//从cabac码流中 重新填入bits
 static void refill(CABACContext *c){
 #if CABAC_BITS == 16
         c->low+= (c->bytestream[0]<<9) + (c->bytestream[1]<<1);
@@ -84,7 +85,7 @@ static inline void renorm_cabac_decoder_once(CABACContext *c){
         refill(c);
 }
 #endif
-
+//从cabac码流中 重新填入bits
 #ifndef get_cabac_inline
 static void refill2(CABACContext *c){
     int i;
@@ -112,9 +113,11 @@ static void refill2(CABACContext *c){
 }
 #endif
 
+///每调用一次 就解码一个bin  每次区间更新需要查表   概率(state)更新也需要查表 
 #ifndef get_cabac_inline
 static av_always_inline int get_cabac_inline(CABACContext *c, uint8_t * const state){
     int s = *state;
+    //range & 0xC0  代表range 在哪个档
     int RangeLPS= ff_h264_lps_range[2*(c->range&0xC0) + s];
     int bit, lps_mask;
 

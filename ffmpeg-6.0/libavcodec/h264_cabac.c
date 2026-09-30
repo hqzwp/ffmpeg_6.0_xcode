@@ -2031,7 +2031,7 @@ decode_intra_mb:
         mb_type |= MB_TYPE_INTERLACED;
 
     h->slice_table[mb_xy] = sl->slice_num;
-
+    //直接放原始像素样值（按位深打包的字节），类似「未压缩采样」。
     if(IS_INTRA_PCM(mb_type)) {
         const int mb_size = ff_h264_mb_sizes[sps->chroma_format_idc] *
                             sps->bit_depth_luma >> 3;

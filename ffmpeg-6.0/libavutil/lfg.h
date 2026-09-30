@@ -29,6 +29,8 @@
  * The exact layout, types and content of this struct may change and should
  * not be accessed directly. Only its `sizeof()` is guaranteed to stay the same
  * to allow easy instanciation.
+ *
+ * 随机数生成器
  */
 typedef struct AVLFG {
     unsigned int state[64];

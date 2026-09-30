@@ -1174,8 +1174,16 @@ int ff_id3v2_parse_apic(AVFormatContext *s, ID3v2ExtraMeta *extra_meta)
         st  = s->streams[s->nb_streams - 1];
         st->codecpar->codec_id   = apic->id;
 
-        if (AV_RB64(st->attached_pic.data) == PNGSIG)
+//        if (AV_RB64(st->attached_pic.data) == PNGSIG)
+//            st->codecpar->codec_id = AV_CODEC_ID_PNG;
+        
+        if (AV_RB64(st->attached_pic.data) == PNGSIG || AV_RB64(st->attached_pic.data) == MNGSIG) {
             st->codecpar->codec_id = AV_CODEC_ID_PNG;
+        } else if (AV_RB24(st->attached_pic.data) == 0xffd8ff) {
+            st->codecpar->codec_id = AV_CODEC_ID_MJPEG;
+        } else if (AV_RB32(st->attached_pic.data) == 0x49492a00 || AV_RB32(st->attached_pic.data) == 0x4D4D002a) {
+            st->codecpar->codec_id = AV_CODEC_ID_TIFF;
+        }
 
         if (apic->description[0])
             av_dict_set(&st->metadata, "title", apic->description, 0);

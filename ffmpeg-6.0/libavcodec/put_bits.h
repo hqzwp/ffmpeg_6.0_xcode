@@ -49,7 +49,11 @@ static const int BUF_BITS = 8 * sizeof(BitBuf);
 
 typedef struct PutBitContext {
     BitBuf bit_buf;
+    //bit_buf 里还剩多少位可写（
     int bit_left;
+    //buf 缓冲区 首地址（不变，例如 tests/cabac.c 里的数组 b）
+    //buf_ptr 下一个要写入的字节 的位置（put_bits 写满就 buf_ptr++）
+    //buf_end 缓冲区 末尾之后（用来 防止写越界）
     uint8_t *buf, *buf_ptr, *buf_end;
 } PutBitContext;
 

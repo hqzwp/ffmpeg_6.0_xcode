@@ -440,7 +440,25 @@ static void fill_decode_neighbors(const H264Context *h, H264SliceContext *sl, in
     if (h->slice_table[topright_xy] != sl->slice_num)
         sl->topright_type = 0;
 }
-
+/*
+ mb_type 16×16 宏块内的编码方式  这个宏块的图像内容应该怎么预测，以及它后面有哪些数据需要解析
+ 0-2
+ mb_type 前三位分别是 bit0 → I_4×4   bit1 → I_16×16   bit2 → I_PCM
+ 3–6
+ 16x16 / 16x8 / 8x16 / 8x8  Inter 划分（四选一）
+ 7
+ INTERLACED 场宏块
+ 8
+ DIRECT2 B Direct
+ 11
+ Skip
+ 12–15
+ P0L0 P1L0 P0L1 P1L1 分区用 L0/L1
+ 16–17
+ QUANT CBP辅助标记
+ 24
+ 8x8DCT 8×8 变换
+ */
 static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int mb_type)
 {
     int topleft_xy, top_xy, topright_xy, left_xy[LEFT_MBS];
@@ -462,13 +480,14 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
     left_type[LBOT] = sl->left_type[LBOT];
 
     if (!IS_SKIP(mb_type)) {
-        if (IS_INTRA(mb_type)) {
+        if (IS_INTRA(mb_type)) {//Intra 只用 本帧（当前 picture） 里 已解码 的邻宏块像素，不用其它帧。
+            //0-2 标志位的掩码   是否有 I_4×4 I_16×16 I_PCM
             int type_mask = h->ps.pps->constrained_intra_pred ? IS_INTRA(-1) : -1;
             sl->topleft_samples_available     =
                 sl->top_samples_available     =
                     sl->left_samples_available = 0xFFFF;
             sl->topright_samples_available     = 0xEEEA;
-
+            //顶部16x16是否可用
             if (!(top_type & type_mask)) {
                 sl->topleft_samples_available  = 0xB3FF;
                 sl->top_samples_available      = 0x33FF;
@@ -506,7 +525,8 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
             if (!(topright_type & type_mask))
                 sl->topright_samples_available &= 0xFBFF;
 
-            if (IS_INTRA4x4(mb_type)) {
+            if (IS_INTRA4x4(mb_type)) {// I4x4
+                //缓存正上方的4个宏块预测模式
                 if (IS_INTRA4x4(top_type)) {
                     AV_COPY32(sl->intra4x4_pred_mode_cache + 4 + 8 * 0, sl->intra4x4_pred_mode + h->mb2br_xy[top_xy]);
                 } else {
@@ -516,6 +536,7 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
                     sl->intra4x4_pred_mode_cache[7 + 8 * 0] = 2 - 3 * !(top_type & type_mask);
                 }
                 for (i = 0; i < 2; i++) {
+                    // 第 (1 + 2×i) 行，第 3 列
                     if (IS_INTRA4x4(left_type[LEFT(i)])) {
                         int8_t *mode = sl->intra4x4_pred_mode + h->mb2br_xy[left_xy[LEFT(i)]];
                         sl->intra4x4_pred_mode_cache[3 + 8 * 1 + 2 * 8 * i] = mode[6 - left_block[0 + 2 * i]];

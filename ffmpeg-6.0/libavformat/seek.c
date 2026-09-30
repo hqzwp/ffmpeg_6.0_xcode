@@ -53,6 +53,7 @@ void ff_reduce_index(AVFormatContext *s, int stream_index)
 
     if ((unsigned) sti->nb_index_entries >= max_entries) {
         int i;
+        //丢掉一般  for循环只走sti->nb_index_entries的一般
         for (i = 0; 2 * i < sti->nb_index_entries; i++)
             sti->index_entries[i] = sti->index_entries[2 * i];
         sti->nb_index_entries = i;

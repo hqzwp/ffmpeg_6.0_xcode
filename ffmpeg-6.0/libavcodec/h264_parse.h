@@ -37,19 +37,57 @@
 #define MB_TYPE_8x8DCT     0x01000000
 
 // This table must be here because scan8[constant] must be known at compiletime
+
+/*
+ 
+ // & 7 % 8 表示 横向第几个 4×4 block。  >> 3 相当于 / 8  表示 纵向第几个 4×4 block。  乘 4  因为一个 block 是 4 个像素宽。
+ // << pixel_shift  (pixel_shift>0 不变)
+
+ delta = scan8[i] - scan8[0]
+ 表示 第 i 个 4×4 block 相对于 第 0 个 4×4 block 的偏移量。
+ x = delta & 7
+ 表示 横向第几个 4×4 block。
+ y = delta >> 3
+ 
+ 
+ 
+ Slice
+ ├── Macroblock 0
+ │   ├── Luma (Y)
+ │   ├── Chroma Cb
+ │   └── Chroma Cr
+ ├── Macroblock 1
+ │   ├── Luma (Y)
+ │   ├── Chroma Cb
+ │   └── Chroma Cr
+ └── ...
+ 
+ FFmpeg 的 cache 并不是0-15 而是故意放到了一个更大的二维 cache 中。
+ 
+ 按照 stride=8的cache  在cache中扫描/映射索引
+ 
+ */
 static const uint8_t scan8[16 * 3 + 3] = {
+    
+    //前16个对应当前宏块的 16 个 4×4 luma block。在cache 中的位置 
     4 +  1 * 8, 5 +  1 * 8, 4 +  2 * 8, 5 +  2 * 8,
     6 +  1 * 8, 7 +  1 * 8, 6 +  2 * 8, 7 +  2 * 8,
     4 +  3 * 8, 5 +  3 * 8, 4 +  4 * 8, 5 +  4 * 8,
     6 +  3 * 8, 7 +  3 * 8, 6 +  4 * 8, 7 +  4 * 8,
+    
+    //第二组 plane/block cache
     4 +  6 * 8, 5 +  6 * 8, 4 +  7 * 8, 5 +  7 * 8,
     6 +  6 * 8, 7 +  6 * 8, 6 +  7 * 8, 7 +  7 * 8,
     4 +  8 * 8, 5 +  8 * 8, 4 +  9 * 8, 5 +  9 * 8,
     6 +  8 * 8, 7 +  8 * 8, 6 +  9 * 8, 7 +  9 * 8,
+    
+    //第三组 plane/block cache
     4 + 11 * 8, 5 + 11 * 8, 4 + 12 * 8, 5 + 12 * 8,
     6 + 11 * 8, 7 + 11 * 8, 6 + 12 * 8, 7 + 12 * 8,
     4 + 13 * 8, 5 + 13 * 8, 4 + 14 * 8, 5 + 14 * 8,
     6 + 13 * 8, 7 + 13 * 8, 6 + 14 * 8, 7 + 14 * 8,
+    
+    //特殊 DC/cache 位置
     0 +  0 * 8, 0 +  5 * 8, 0 + 10 * 8
 };
 
@@ -79,12 +117,27 @@ typedef struct H264PredWeightTable {
     int implicit_weight[48][48][2];
 } H264PredWeightTable;
 
+/*
+poc 计算
+ 码流里只有 poc_lsb（比如 8 位，0~255），会循环： ... 254, 255, 0, 1, 2 ...
+ 解码器还要拼出完整 POC： POC = poc_msb + poc_lsb
+ 
+ poc_msb 不在 slice header 里，只能根据上一参考帧的 POC 来猜当前帧落在哪个「周期」里。
+
+
+ 
+*/
+//有 B 帧时解码顺序 ≠ 显示顺序，靠 POC 才能正确推 PTS / 显示顺序。
 typedef struct H264POCContext {
-    int poc_lsb;
+    int poc_lsb;            //slice header POC 低比特（type 0）
+    /*
+     解码器推算 POC 高比特（type 0，非码流直接读）
+     根据周期和上一个slice的poc 推算出来
+     */
     int poc_msb;
-    int delta_poc_bottom;
-    int delta_poc[2];
-    int frame_num;
+    int delta_poc_bottom;   //slice header 底场相对顶场的 POC 差（帧模式）
+    int delta_poc[2];       //  slice header type 1 的场 POC 偏移
+    int frame_num;          //加码序号
     int prev_poc_msb;           ///< poc_msb of the last reference pic for POC type 0
     int prev_poc_lsb;           ///< poc_lsb of the last reference pic for POC type 0
     int frame_num_offset;       ///< for POC type 2
@@ -111,7 +164,7 @@ int ff_h264_check_intra4x4_pred_mode(int8_t *pred_mode_cache, void *logctx,
 int ff_h264_check_intra_pred_mode(void *logctx, int top_samples_available,
                                   int left_samples_available,
                                   int mode, int is_chroma);
-
+//本 slice 用几个参考列表、每个列表用几张参考帧。
 int ff_h264_parse_ref_count(int *plist_count, int ref_count[2],
                             GetBitContext *gb, const PPS *pps,
                             int slice_type_nos, int picture_structure, void *logctx);

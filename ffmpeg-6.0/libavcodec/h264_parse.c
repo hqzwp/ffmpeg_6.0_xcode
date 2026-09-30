@@ -217,7 +217,7 @@ int ff_h264_check_intra_pred_mode(void *logctx, int top_samples_available,
 
     return mode;
 }
-
+//本 slice 用几个参考列表、每个列表用几张参考帧。
 int ff_h264_parse_ref_count(int *plist_count, int ref_count[2],
                             GetBitContext *gb, const PPS *pps,
                             int slice_type_nos, int picture_structure, void *logctx)
@@ -275,7 +275,7 @@ fail:
     ref_count[1] = 0;
     return AVERROR_INVALIDDATA;
 }
-
+//解析slice 的poc
 int ff_h264_init_poc(int pic_field_poc[2], int *pic_poc,
                      const SPS *sps, H264POCContext *pc,
                      int picture_structure, int nal_ref_idc)

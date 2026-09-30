@@ -906,7 +906,8 @@ static int png_probe(const AVProbeData *p)
 {
     const uint8_t *b = p->buf;
 
-    if (AV_RB64(b) == 0x89504e470d0a1a0a)
+//    if (AV_RB64(b) == 0x89504e470d0a1a0a)
+    if (AV_RB64(b) == 0x89504e470d0a1a0a || AV_RB64(b)  == 0x8a4d4e470d0a1a0a)
         return AVPROBE_SCORE_MAX - 1;
     return 0;
 }

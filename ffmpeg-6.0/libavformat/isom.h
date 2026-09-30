@@ -180,6 +180,16 @@ typedef struct MOVIndexRange {
     int64_t end;
 } MOVIndexRange;
 
+typedef struct HEICItem {
+    int item_id;
+    uint64_t pos;
+    uint64_t size;
+    uint32_t width;
+    uint32_t height;
+    int is_idat_relative;
+    int type;
+} HEICItem;
+
 typedef struct MOVStreamContext {
     AVIOContext *pb;
     int pb_is_copied;
@@ -316,6 +326,7 @@ typedef struct MOVContext {
     int use_mfra_for;
     int has_looked_for_mfra;
     int use_tfdt;
+    //MOVFragmentIndex 是 fMP4（分片 MP4）的分片索引表，挂在 MOVContext.frag_index 上。普通 MP4 一个 moov 管全文件，不需要它；DASH / HLS 的 .m4s、带 moof 的 mp4 才用。
     MOVFragmentIndex frag_index;
     int atom_depth;
     unsigned int aax_mode;  ///< 'aax' file has been detected
@@ -552,5 +563,28 @@ extern const struct MP4TrackKindMapping ff_mov_track_kind_table[];
  |       |                                | stsd 中通常为 mp4a                    |
  |       |                                | AudioSpecificConfig 保存 AAC 参数     |
  +--------------------------------------------------------------------------------+
+ 
+ 
+ 
+ HEIF
+ 
+ ┌──────────────────────────────────────────┐
+ │ ftyp                                     │
+ │   文件类型 / brand                        │
+ ├──────────────────────────────────────────┤
+ │ meta                                     │
+ │   ├── hdlr                               │
+ │   ├── pitm                               │
+ │   ├── iloc                               │
+ │   ├── iinf                               │
+ │   ├── iprp                               │
+ │   │    ├── ipco                           │
+ │   │    └── ipma                           │
+ │   └── ...                                │
+ ├──────────────────────────────────────────┤
+ │ mdat                                     │
+ │   └── HEVC image data                    │
+ └──────────────────────────────────────────┘
+ 
  
  */

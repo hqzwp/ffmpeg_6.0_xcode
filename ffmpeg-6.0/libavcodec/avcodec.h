@@ -297,6 +297,7 @@ typedef struct RcOverride{
 #define AV_CODEC_FLAG_LOOP_FILTER     (1 << 11)
 /**
  * Only decode/encode grayscale.
+ * 解码时只处理亮度分量
  */
 #define AV_CODEC_FLAG_GRAY            (1 << 13)
 /**
@@ -346,6 +347,9 @@ typedef struct RcOverride{
 /**
  * Input bitstream might be truncated at a packet boundaries
  * instead of only at frame boundaries.
+ * 告诉解码器「输入可能是半截帧，别每次都当完整帧处理」。
+    平时 demuxer 一次给完整一帧时不用设；自己按 slice/NAL 分片送时才需要。
+ *   ex: h264 可以组好桢之后在解码  也可以多个nal连续送入
  */
 #define AV_CODEC_FLAG2_CHUNKS         (1 << 15)
 /**
@@ -2978,7 +2982,9 @@ typedef struct AVCodecParser {
     int priv_data_size;
     int (*parser_init)(AVCodecParserContext *s);
     /* This callback never returns an error, a negative value means that
-     * the frame start was in a previous packet. */
+     * the frame start was in a previous packet.
+     每次输入数据解析 当返回值>0时 表示一帧已经解析结束 代表这次消费的字节数 
+     */
     int (*parser_parse)(AVCodecParserContext *s,
                         AVCodecContext *avctx,
                         const uint8_t **poutbuf, int *poutbuf_size,

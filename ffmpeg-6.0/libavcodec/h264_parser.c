@@ -54,7 +54,9 @@ typedef struct H264ParseContext {
     H264ParamSets ps;
     H264DSPContext h264dsp;
     H264POCContext poc;
+    //SEI NALU上下文
     H264SEIContext sei;
+    //avc nal size +  nal  / annexb
     int is_avc;
     int nal_length_size;
     int got_first;
@@ -75,7 +77,7 @@ static int find_start_code(const uint8_t *buf, int buf_size,
 
     return FFMIN(buf_index, buf_size);
 }
-
+//找到下一帧
 static int h264_find_frame_end(H264ParseContext *p, const uint8_t *buf,
                                int buf_size, void *logctx)
 {
@@ -309,6 +311,7 @@ static inline int parse_nal_units(AVCodecParserContext *s,
         case H264_NAL_SLICE:
         case H264_NAL_IDR_SLICE:
             // Do not walk the whole buffer just to decode slice header
+            //这里提高性能 因为这里的nal很大
             if ((state & 0x1f) == H264_NAL_IDR_SLICE || ((state >> 5) & 0x3) == 0) {
                 /* IDR or disposable slice
                  * No need to decode many bytes because MMCOs shall not be present. */
@@ -334,7 +337,7 @@ static inline int parse_nal_units(AVCodecParserContext *s,
         nal.ref_idc = get_bits(&nal.gb, 2);
         nal.type    = get_bits(&nal.gb, 5);
 
-        switch (nal.type) {
+        switch (nal.type) { //这里就处理这5种NALU
         case H264_NAL_SPS:
             ff_h264_decode_seq_parameter_set(&nal.gb, avctx, &p->ps, 0);
             break;
@@ -608,6 +611,7 @@ static int h264_parse(AVCodecParserContext *s,
     if (s->flags & PARSER_FLAG_COMPLETE_FRAMES) {
         next = buf_size;
     } else {
+        //查找这一桢的结束位置 这里可能会多次查找
         next = h264_find_frame_end(p, buf, buf_size, avctx);
 
         if (ff_combine_frame(pc, next, &buf, &buf_size) < 0) {
@@ -621,7 +625,7 @@ static int h264_parse(AVCodecParserContext *s,
             h264_find_frame_end(p, &pc->buffer[pc->last_index + next], -next, avctx); // update state
         }
     }
-
+    //指针中可能会有多个nalu 
     parse_nal_units(s, avctx, buf, buf_size);
 
     if (avctx->framerate.num)

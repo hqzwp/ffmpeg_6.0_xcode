@@ -124,8 +124,9 @@ typedef struct H264Picture {
 
     AVBufferRef *ref_index_buf[2];
     int8_t *ref_index[2];
-
+    //场编码 Picture Order Count（图像顺序计数），表示这张图在显示时间轴上的先后，不是解码顺序。
     int field_poc[2];       ///< top/bottom POC
+    ///桢编码  Picture Order Count（图像顺序计数），表示这张图在显示时间轴上的先后，不是解码顺序。
     int poc;                ///< frame POC
     int frame_num;          ///< frame_num (raw frame_num from slice header)
     int mmco_reset;         /**< MMCO_RESET set this 1. Reordering code must
@@ -171,22 +172,29 @@ typedef struct H264SliceContext {
     const struct H264Context *h264;
     GetBitContext gb;
     ERContext *er;
-
+    //slice 序号  1开始
     int slice_num;
+    //ISlice   PSlice  BSlice 
     int slice_type;
+    //是把 SI→I、SP→P 之后的片类型
     int slice_type_nos;         ///< S free slice type (SI/SP are remapped to I/P)
+    //是否带 +5 固定标记，是的话，slice_type_nos 需要 +5
     int slice_type_fixed;
-
+    //本 slice 基础 QP
     int qscale;
+    //Cb/Cr 的 QP
     int chroma_qp[2];   // QPc
+    //超过此 QP 可跳过环路滤波
     int qp_thresh;      ///< QP threshold to skip loopfilter
+    //上一宏块 QP 差，用于预测
     int last_qscale_diff;
 
     // deblock
+    //1 开启去块滤波 2 多slice下 做简单区块滤波 0未开启 
     int deblocking_filter;          ///< disable_deblocking_filter_idc with 1 <-> 0
     int slice_alpha_c0_offset;
     int slice_beta_offset;
-
+    //P/B 加权预测权重表
     H264PredWeightTable pwt;
 
     int prev_mb_skipped;
@@ -195,14 +203,32 @@ typedef struct H264SliceContext {
     int chroma_pred_mode;
     int intra16x16_pred_mode;
 
+    /*
+     布局约定（配合 scan8）：
+     本 MB 16 个 4×4 在 第 1–4 行、第 4–7 列（scan8 指这里）。
+     上邻 4 个 mode 在 正上方同一列，所以是 第 0 行、第 4–7 列 → 起始下标 4 + 8*0。
+     第 0–3 列 留给 左邻 / 边距（左 mode 在 第 3 列 等），所以本块 不从第 0 列起。
+     
+     0  Vertical（竖）
+     1  Horizontal（横）
+     2  DC
+     3  Diagonal Down-Left
+     4  Diagonal Down-Right
+     5  Vertical-Right
+     6  Horizontal-Down
+     7  Vertical-Left
+     8  Horizontal-Up
+     −1 无效/不可用（FFmpeg 占位，非码流语法值）
+     */
     int8_t intra4x4_pred_mode_cache[5 * 8];
+    //放最近已解码的16x16宏块的下4右3 4×4子宏块的预测模式  每个16x16 对应8个字节(有效7个4+3)  mb2br_xy 存的是该缓存的索引
     int8_t(*intra4x4_pred_mode);
 
+    //相对于当前16x16的16x16宏块
     int topleft_mb_xy;
     int top_mb_xy;
     int topright_mb_xy;
     int left_mb_xy[LEFT_MBS];
-
     int topleft_type;
     int top_type;
     int topright_type;
@@ -210,37 +236,51 @@ typedef struct H264SliceContext {
 
     const uint8_t *left_block;
     int topleft_partition;
-
-    unsigned int topleft_samples_available;
-    unsigned int top_samples_available;
-    unsigned int topright_samples_available;
-    unsigned int left_samples_available;
+    
+    //用16位 分别表示当前16x16宏块的 16 个 4×4 宏块的所有左上角是否可用
+    /*
+     bit: 15 14 13 12
+          11 10  9  8
+          7  6  5  4
+          3  2  1  0
+     16位中的最高位是左上角的像素
+     */
+    unsigned int topleft_samples_available;  //每位表示：该 4×4 预测时，角点 P[-1,-1] 能不能用真实重建像素。
+    unsigned int top_samples_available;      //每位表示：该 4×4 预测时，上面一行   能不能用真实重建像素。
+    unsigned int topright_samples_available;//每位表示：该 4×4 预测时，P[4 + 1,-1]  能不能用真实重建像素。
+    unsigned int left_samples_available;    //每位表示：该 4×4 预测时，左边一列  能不能用真实重建像素。
 
     ptrdiff_t linesize, uvlinesize;
     ptrdiff_t mb_linesize;  ///< may be equal to s->linesize or s->linesize * 2, for mbaff
     ptrdiff_t mb_uvlinesize;
-
+    //当前正在解 的宏块列号
     int mb_x, mb_y;
+    //当前宏块在frame中的位置
     int mb_xy;
+    // resync_mb_x  本slice 在桢中的第多少列  行
     int resync_mb_x;
     int resync_mb_y;
+    //本slice 第一个宏块在frame中的位置
     unsigned int first_mb_addr;
     // index of the first MB of the next slice
     int next_slice_idx;
+    // 这块是 P/B 的 Skip/Direct 跳过宏块，码流里几乎只有 skip 标志，重建靠 MVP/Direct，没有正常 CABAC 系数路径
     int mb_skip_run;
     int is_complex;
-
+    // 1 桢编码  
     int picture_structure;
+    //1 场编码
     int mb_field_decoding_flag;
+    //桢编码下的MBAFF
     int mb_mbaff;               ///< mb_aff_frame && mb_field_decoding_flag
-
+    //0 正常图像，继续解码  >0  冗余图像，同一幅图的额外编码副本
     int redundant_pic_count;
 
     /**
      * number of neighbors (top and/or left) that used 8x8 dct
      */
     int neighbor_transform_size;
-
+    //B桢才会有  决定 Direct 模式采用：
     int direct_spatial_mv_pred;
     int col_parity;
     int col_fieldoff;
@@ -256,8 +296,10 @@ typedef struct H264SliceContext {
 
     /**
      * num_ref_idx_l0/1_active_minus1 + 1
+     * 参考帧列表
      */
     unsigned int ref_count[2];          ///< counts frames or fields, depending on current mb mode
+    //参考数量    I 桢的数量为0  
     unsigned int list_count;
     H264Ref ref_list[2][48];        /**< 0..15: frame refs, 16..47: mbaff field refs.
                                          *   Reordered version of default_ref_list
@@ -271,7 +313,11 @@ typedef struct H264SliceContext {
     unsigned int pps_id;
 
     const uint8_t *intra_pcm_ptr;
-
+    
+    
+    //解码缓冲区 
+    
+    //B 帧双向预测临时区：分别存 L0/L1 预测块，再合成最终预测。
     uint8_t *bipred_scratchpad;
     uint8_t *edge_emu_buffer;
     uint8_t (*top_borders[2])[(16 * 3) * 2];
@@ -311,11 +357,20 @@ typedef struct H264SliceContext {
     uint8_t cabac_state[1024];
     int cabac_init_idc;
 
+    
+    /*
+     MMCO = Memory Management Control Operation（存储管理控制操作）
+     一帧/一场解完后，用来 更新 DPB（参考帧池）：谁还能当参考、谁释放、谁进长期列表。
+     命令在 slice header 的 dec_ref_pic_marking 里；IDR 有固定规则，非 IDR 可显式列出或靠 滑动窗口 自动生成。
+     */
     MMCO mmco[H264_MAX_MMCO_COUNT];
     int  nb_mmco;
+    
+    
     int explicit_ref_marking;
-
+    //标识当前 Slice所属的picture 在参考帧管理中的编号。
     int frame_num;
+    // idr slice 的ID
     int idr_pic_id;
     int poc_lsb;
     int delta_poc_bottom;
@@ -335,18 +390,20 @@ typedef struct H264Context {
     H264ChromaContext h264chroma;
     H264QpelContext h264qpel;
     H274FilmGrainDatabase h274db;
-
+    //Decoded Picture Buffer  已解码的图像缓存
     H264Picture DPB[H264_MAX_PICTURE_COUNT];
     H264Picture *cur_pic_ptr;
     H264Picture cur_pic;
     H264Picture last_pic_for_ec;
-
+    //同时解码的slices  slice队列
     H264SliceContext *slice_ctx;
+    //同时解码的slice 个数   ==  avctx->thread_count
     int            nb_slice_ctx;
     int            nb_slice_ctx_queued;
 
     H2645Packet pkt;
 
+    //sps->bit_depth_luma > 8;
     int pixel_shift;    ///< 0 for 8-bit H.264, 1 for high-bit-depth H.264
 
     /* coded dimensions -- 16 * mb w/h */
@@ -363,6 +420,7 @@ typedef struct H264Context {
     /* Set when slice threading is used and at least one slice uses deblocking
      * mode 1 (i.e. across slice boundaries). Then we disable the loop filter
      * during normal MB decoding and execute it serially at the end.
+     一帧多slice时  等所有的slice解码完 再做滤波
      */
     int postpone_filter;
 
@@ -391,17 +449,37 @@ typedef struct H264Context {
     /**
      * block_offset[ 0..23] for frame macroblocks
      * block_offset[24..47] for field macroblocks
+     *
+     ┌────┬────┬────┬────┐
+     │ 0  │ 1  │ 4  │ 5  │
+     ├────┼────┼────┼────┤
+     │ 2  │ 3  │ 6  │ 7  │
+     ├────┼────┼────┼────┤
+     │ 8  │ 9  │ 12 │ 13 │
+     ├────┼────┼────┼────┤
+     │ 10 │ 11 │ 14 │ 15 │  ← block_offset[15] 是右下角这块
+     └────┴────┴────┴────┘
+     *
+     当前宏块内部，第 i 个 4×4 块的左上角  在整个内存图像的字节偏移。
      */
     int block_offset[2 * (16 * 3)];
 
     uint32_t *mb2b_xy;  // FIXME are these 4 a good idea?
+    //存每个宏块在intra4x4_pred_mode中的偏移量  mb_xy = 8; mb2br_xy[mb_xy] 表示在intra4x4_pred_mode的偏移量
     uint32_t *mb2br_xy;
     int b_stride;       // FIXME use s->b4_stride
-
+    //当前宏块属于哪个slice 
     uint16_t *slice_table;      ///< slice_table_base + 2*mb_stride + 1
 
     // interlacing specific flags
+    //桢编码下 每一对宏块（macroblock pair）可以自己决定 Frame coding 还是 Field coding。 Macroblock-Adaptive Frame/Field
     int mb_aff_frame;
+    //场编码下的顶场/底场
+    /*
+     #define PICT_TOP_FIELD     1
+     #define PICT_BOTTOM_FIELD  2
+     #define PICT_FRAME         3
+     */
     int picture_structure;
     int first_field;
 
@@ -428,10 +506,14 @@ typedef struct H264Context {
     uint8_t field_scan_q0[16];
     uint8_t field_scan8x8_q0[64];
     uint8_t field_scan8x8_cavlc_q0[64];
-
+    
+    //从 0 开始，表示当前正在解的宏块行号（第几行 MB）
     int mb_y;
+    //当前桢多少行宏块  每行多少宏块（列数）
     int mb_height, mb_width;
+    //MB 数组行跨度 = mb_width + 1（多 1 列做边界/去块用）
     int mb_stride;
+    //当前桢总的宏块数 = mb_width × mb_height
     int mb_num;
 
     // =============================================================
@@ -483,6 +565,7 @@ typedef struct H264Context {
      */
     /**
      * current slice number, used to initialize slice_num of each thread/context
+     * 当前桢的第几个slice 
      */
     int current_slice;
 
@@ -778,7 +861,7 @@ static av_always_inline int get_dct8x8_allowed(const H264Context *h, H264SliceCo
                  ((MB_TYPE_16x8 | MB_TYPE_8x16 | MB_TYPE_8x8 | MB_TYPE_DIRECT2) *
                   0x0001000100010001ULL));
 }
-
+//一帧或一场结束 
 int ff_h264_field_end(H264Context *h, H264SliceContext *sl, int in_setup);
 
 int ff_h264_ref_picture(H264Context *h, H264Picture *dst, H264Picture *src);
