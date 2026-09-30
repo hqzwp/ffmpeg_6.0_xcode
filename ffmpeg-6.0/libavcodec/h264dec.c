@@ -34,6 +34,9 @@
 #include "libavutil/opt.h"
 #include "libavutil/thread.h"
 #include "libavutil/video_enc_params.h"
+#include "libavutil/video_mb_params.h"
+
+#include <string.h>
 
 #include "codec_internal.h"
 #include "internal.h"
@@ -835,6 +838,38 @@ static int h264_export_enc_params(AVFrame *f, H264Picture *p)
     return 0;
 }
 
+static int h264_export_mb_info(AVFrame *f, const H264Picture *p)
+{
+    const unsigned stride = p->mb_stride;
+    const unsigned height = p->mb_height;
+    const size_t count = (size_t)stride * height;
+    const size_t type_bytes = count * sizeof(uint32_t);
+    const size_t ref_one = 4 * count;
+    //三块数据  1宏块信息  2宏块类型 3引用 
+    const size_t size = sizeof(AVVideoMBParams) + type_bytes + 2 * ref_one;
+    AVFrameSideData *sd;
+    AVVideoMBParams *par;
+
+    if (!p->mb_type || !stride || !height)
+        return 0;
+
+    sd = av_frame_new_side_data(f, AV_FRAME_DATA_VIDEO_MB_INFO, size);
+    if (!sd)
+        return AVERROR(ENOMEM);
+    memset(sd->data, 0, size);
+
+    par = (AVVideoMBParams *)sd->data;
+    par->mb_width = p->mb_width;
+    par->mb_height = height;
+    par->mb_stride = stride;
+    memcpy(av_video_mb_type(par), p->mb_type, type_bytes);
+    if (p->ref_index[0])
+        memcpy(av_video_mb_ref_index(par, 0), p->ref_index[0], ref_one);
+    if (p->ref_index[1])
+        memcpy(av_video_mb_ref_index(par, 1), p->ref_index[1], ref_one);
+    return 0;
+}
+
 static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
 {
     int ret;
@@ -853,6 +888,12 @@ static int output_frame(H264Context *h, AVFrame *dst, H264Picture *srcp)
 
     if (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_VIDEO_ENC_PARAMS) {
         ret = h264_export_enc_params(dst, srcp);
+        if (ret < 0)
+            goto fail;
+    }
+
+    if (h->avctx->export_side_data & AV_CODEC_EXPORT_DATA_VIDEO_MB_INFO) {
+        ret = h264_export_mb_info(dst, srcp);
         if (ret < 0)
             goto fail;
     }

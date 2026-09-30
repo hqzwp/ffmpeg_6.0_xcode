@@ -214,6 +214,14 @@ enum AVFrameSideDataType {
      * Ambient viewing environment metadata, as defined by H.274.
      */
     AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT,
+
+    /**
+     * H.264 macroblock type and reference index.
+     * The data is the AVVideoMBParams struct defined in libavutil/video_mb_params.h,
+     * followed by the mb_type and ref_index arrays described there.
+     * Exported when AV_CODEC_EXPORT_DATA_VIDEO_MB_INFO is set.
+     */
+    AV_FRAME_DATA_VIDEO_MB_INFO,
 };
 
 enum AVActiveFormatDescription {

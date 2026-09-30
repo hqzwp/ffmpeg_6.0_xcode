@@ -401,6 +401,12 @@ typedef struct RcOverride{
  * Do not apply film grain, export it instead.
  */
 #define AV_CODEC_EXPORT_DATA_FILM_GRAIN (1 << 3)
+/**
+ * Decoding only.
+ * Export H.264 macroblock type and reference index through frame side data.
+ * The payload is AVVideoMBParams, defined in libavutil/video_mb_params.h.
+ */
+#define AV_CODEC_EXPORT_DATA_VIDEO_MB_INFO (1 << 4)
 
 /**
  * The decoder will keep a reference to the frame and may reuse it later.

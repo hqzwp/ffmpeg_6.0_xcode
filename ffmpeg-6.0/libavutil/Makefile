@@ -87,6 +87,7 @@ HEADERS = adler32.h                                                     \
           uuid.h                                                        \
           version.h                                                     \
           video_enc_params.h                                            \
+          video_mb_params.h                                             \
           xtea.h                                                        \
           tea.h                                                         \
           tx.h                                                          \
