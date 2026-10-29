@@ -1258,7 +1258,7 @@ static const int8_t cabac_context_init_PB[3][1024][2] =
         {  -5,  79 }, { -11, 104 }, { -11,  91 }, { -30, 127 }
     }
 };
-
+//在每个 slice 开始 CABAC 解宏块之前 调用  初始化cabac_state
 void ff_h264_init_cabac_states(const H264Context *h, H264SliceContext *sl)
 {
     int i;
@@ -1554,11 +1554,20 @@ static int decode_cabac_mb_mvd(H264SliceContext *sl, int ctxbase, int amvd, int 
     mx += mxd;\
     my += myd;\
 }
-
+//算出解 coded block flag 时该用 cabac_state 里的哪一个概率状态。它不读码流，只返回下标。
+/*
+图像在空间上是连着的。左边或上边那块已经有非零系数，当前块多半也有；两边都是 0，当前块多半也是 0。解码顺序里这两块已经解完，可以直接当条件。于是把两种情况收成 4 个上下文：
+两边都没有：+0
+只有左边有：+1
+只有上边有：+2
+两边都有：+3
+*/
 static av_always_inline int get_cabac_cbf_ctx(H264SliceContext *sl,
                                               int cat, int idx, int max_coeff,
                                               int is_dc)
-{
+{   
+    //nza 是左边那块有没有非零系数，nzb 是上边那块有没有。
+    //名字里的 a、b 就是 H.264 里左邻、上邻的习惯叫法。
     int nza, nzb;
     int ctx = 0;
     static const uint16_t base_ctx[14] = {85,89,93,97,101,1012,460,464,468,1016,472,476,480,1020};
@@ -1586,7 +1595,16 @@ static av_always_inline int get_cabac_cbf_ctx(H264SliceContext *sl,
 
     return base_ctx[cat] + ctx;
 }
-
+/*
+先找出哪些格子非零，再记下非零个数，最后从最后一个非零往回解出每个格子的值。
+block: 系数缓冲区
+ cat   选概率模型
+ n 宏块里的块号 交流0-47（按最大分量YUV444  此时每个分量4x4=16 3x16=48）  直流
+ max_coeff 是这一块要扫描的系数格子总数（DC 为 16，Intra16×16 的 AC 为 15，普通 4×4 为 16，8×8 为 64）
+ is_dc  当前调用解的整块，是不是被单独抽出来的直流块
+ qmul 是这块的反量化乘数表。码流里解出的是量化等级，写入 block 之前要乘上它，得到反量化后的变换系数。
+scantable 缓冲区的扫描表
+*/
 static av_always_inline void
 decode_cabac_residual_internal(const H264Context *h, H264SliceContext *sl,
                                int16_t *block,
@@ -1594,14 +1612,38 @@ decode_cabac_residual_internal(const H264Context *h, H264SliceContext *sl,
                                const uint32_t *qmul, int max_coeff,
                                int is_dc, int chroma422)
 {
+    /*
+    解码变换块  
+    先存放位置、后存放数值。
+    亮度
+     16 个 4×4  每分量抽出 1 个直流 组成一个4x4 
+    色度
+    格式	Cb、Cr 各有多少个 4×4	直流怎么放
+    4:2:0   4 个（8×8）           每分量抽出 4 个直流，单独成一块
+    4:2:2   8 个（8×16）          每分量抽出 8 个直流，单独成一块
+    4:4:4   16 个（16×16）        不走色度直流块，和亮度用同一套
+
+
+    扫描顺序  斜着的Z型
+    第1个 → 第2个    第6个    第7个
+    第3个    第5个    第8个    第13个
+    第4个    第9个    第12个   第14个
+    第10个   第11个   第15个   第16个
+    按照上述的顺序解码CABAC  如果4x4中前三个是非0 那么解到第三个就结束扫描 其余全是0 
+    */
+
+    //这些表只回答一个问题：解当前这一比特时，用 cabac_state 里的哪一格概率。格子里的概率会在解码过程中自己更新，表只负责选格子。
+    //significant_coeff_flag 在帧宏块里从下标 105 开始。这一段内部还要再分：亮度 DC、亮度 AC、普通 4×4、色度，非零的概率都不一样，标准给它们各留了若干格。105+0、105+15、105+29 就是这些小段的起点。扫描位置再往起点上加，才得到最终下标。
     static const int significant_coeff_flag_offset[2][14] = {
       { 105+0, 105+15, 105+29, 105+44, 105+47, 402, 484+0, 484+15, 484+29, 660, 528+0, 528+15, 528+29, 718 },
       { 277+0, 277+15, 277+29, 277+44, 277+47, 436, 776+0, 776+15, 776+29, 675, 820+0, 820+15, 820+29, 733 }
     };
+    //判断当前格子是不是最后一个非0 
     static const int last_coeff_flag_offset[2][14] = {
       { 166+0, 166+15, 166+29, 166+44, 166+47, 417, 572+0, 572+15, 572+29, 690, 616+0, 616+15, 616+29, 748 },
       { 338+0, 338+15, 338+29, 338+44, 338+47, 451, 864+0, 864+15, 864+29, 699, 908+0, 908+15, 908+29, 757 }
     };
+    //非0系数的幅度
     static const int coeff_abs_level_m1_offset[14] = {
         227+0, 227+10, 227+20, 227+30, 227+39, 426, 952+0, 952+10, 952+20, 708, 982+0, 982+10, 982+20, 766
     };
@@ -1635,13 +1677,14 @@ decode_cabac_residual_internal(const H264Context *h, H264SliceContext *sl,
     int index[64];
 
     int last;
+    //非0系数的个数
     int coeff_count = 0;
     int node_ctx = 0;
 
     uint8_t *significant_coeff_ctx_base;
     uint8_t *last_coeff_ctx_base;
     uint8_t *abs_level_m1_ctx_base;
-
+    
 #if !ARCH_X86
 #define CABAC_ON_STACK
 #endif
@@ -1664,8 +1707,9 @@ decode_cabac_residual_internal(const H264Context *h, H264SliceContext *sl,
         + last_coeff_flag_offset[MB_FIELD(sl)][cat];
     abs_level_m1_ctx_base = sl->cabac_state
         + coeff_abs_level_m1_offset[cat];
-
+    //max_coeff 是格子数
     if( !is_dc && max_coeff == 64 ) {
+        //解码系数位置  并且统计个数 
 #define DECODE_SIGNIFICANCE( coefs, sig_off, last_off ) \
         for(last= 0; last < coefs; last++) { \
             uint8_t *sig_ctx = significant_coeff_ctx_base + sig_off; \
@@ -1703,22 +1747,40 @@ decode_cabac_residual_internal(const H264Context *h, H264SliceContext *sl,
 #endif
     }
     av_assert2(coeff_count > 0);
-
-    if( is_dc ) {
-        if( cat == 3 )
+    //给对应的变换块填上对应的非0系数个数
+    if( is_dc ) {//直流块 codec block flag 
+        if( cat == 3 )//是色度直流
             h->cbp_table[sl->mb_xy] |= 0x40 << (n - CHROMA_DC_BLOCK_INDEX);
         else
             h->cbp_table[sl->mb_xy] |= 0x100 << (n - LUMA_DC_BLOCK_INDEX);
         sl->non_zero_count_cache[scan8[n]] = coeff_count;
     } else {
-        if( max_coeff == 64 )
+        if( max_coeff == 64 )//8x8 此时代表4个4x4 
             fill_rectangle(&sl->non_zero_count_cache[scan8[n]], 2, 2, 8, coeff_count, 1);
-        else {
+        else {//
             av_assert2( cat == 1 || cat ==  2 || cat ==  4 || cat == 7 || cat == 8 || cat == 11 || cat == 12 );
             sl->non_zero_count_cache[scan8[n]] = coeff_count;
         }
     }
-
+    /*
+     解码非0系数
+     从最后那个有数的格子开始，一格一格往前读。
+     每一格都先问一句：绝对值是不是 1？
+     多数非零系数就是 ±1，所以这一问最常见。
+     回答是。 绝对值已经确定是 1，再读 1 比特当符号。0 是正，1 是负。这一格就是 +1 或 -1，结束。
+     回答不是。 这个数至少是 2。然后反复问「还要不要再加 1」：
+     再加，变成 3，继续问。
+     再加，变成 4，继续问。
+     不加了，就停在当前这个数。
+     加到 14 还不停，再用后面的旁路比特把更大的数拼完。
+     数定下来之后，同样再读 1 比特符号。
+     例如最后两个非零是「第 2 格为 −1，第 0 格为 +5」。先读第 2 格：是 1，符号为负，得到 −1。再读第 0 格：不是 1，从 2 加到 5 停下，符号为正，得到 +5。
+     
+     
+     直流抽出来之后，又做了一次哈达玛变换，量化的是变换后的 16 个数。解码要先把这 16 个等级反变换回去，得到每个 4×4 自己的直流  所以直流在这里反量化
+     普通块没有这第二次变换，读出等级就可以直接反量化，所以当时就乘了。
+     */
+    
 #define STORE_BLOCK(type) \
     do { \
         uint8_t *ctx = coeff_abs_level1_ctx[node_ctx] + abs_level_m1_ctx_base; \
@@ -1811,7 +1873,15 @@ static av_noinline void decode_cabac_residual_nondc_internal(const H264Context *
  *      2-> Luma4x4   n = luma4x4idx
  *      3-> DC Chroma n = iCbCr
  *      4-> AC Chroma n = 16 + 4 * iCbCr + chroma4x4idx
- *      5-> Luma8x8   n = 4 * luma8x8idx */
+ *      5-> Luma8x8   n = 4 * luma8x8idx
+ 
+        块                亮度     Cb       Cr
+        Intra16 直流      0        6       10
+        Intra16 交流      1        7       11
+        普通 4×4          2        8       12
+        8×8              5        9       13
+
+ */
 
 /* Partially inline the CABAC residual decode: inline the coded block flag.
  * This has very little impact on binary size and improves performance
@@ -1825,7 +1895,9 @@ static av_always_inline void decode_cabac_residual_dc(const H264Context *h,
                                                       const uint8_t *scantable,
                                                       int max_coeff)
 {
-    /* read coded block flag */
+    /* read coded block flag
+     coded block flag 是进入系数数据前的最后一道开关  如果>0则就有系数
+     */
     if( get_cabac( &sl->cabac, &sl->cabac_state[get_cabac_cbf_ctx(sl, cat, n, max_coeff, 1)]) == 0 ) {
         sl->non_zero_count_cache[scan8[n]] = 0;
         return;
@@ -1839,7 +1911,9 @@ decode_cabac_residual_dc_422(const H264Context *h, H264SliceContext *sl,
                              int cat, int n, const uint8_t *scantable,
                              int max_coeff)
 {
-    /* read coded block flag */
+    /* read coded block flag
+     coded block flag 是进入系数数据前的最后一道开关  如果>0则就有系数
+     */
     if (get_cabac(&sl->cabac, &sl->cabac_state[get_cabac_cbf_ctx(sl, cat, n, max_coeff, 1)]) == 0) {
         sl->non_zero_count_cache[scan8[n]] = 0;
         return;
@@ -1855,7 +1929,9 @@ static av_always_inline void decode_cabac_residual_nondc(const H264Context *h,
                                                          const uint32_t *qmul,
                                                          int max_coeff)
 {
-    /* read coded block flag */
+    /* read coded block flag
+     coded block flag 是进入系数数据前的最后一道开关  如果>0则就有系数
+     */
     if( (cat != 5 || CHROMA444(h)) && get_cabac( &sl->cabac, &sl->cabac_state[get_cabac_cbf_ctx(sl, cat, n, max_coeff, 0)]) == 0) {
         if( max_coeff == 64 ) {
             fill_rectangle(&sl->non_zero_count_cache[scan8[n]], 2, 2, 8, 0, 1);
@@ -1866,22 +1942,39 @@ static av_always_inline void decode_cabac_residual_nondc(const H264Context *h,
     }
     decode_cabac_residual_nondc_internal(h, sl, block, cat, n, scantable, qmul, max_coeff);
 }
+//亮度 残差值 (DCT)-> 变换系数  (量化)-> 量化系数
+//这里解码的就是量化系数
+/*
 
+scan：    4x4 扫描表
+scan8x8   8x8 扫描表
+p:
+ 0  sl->qscale
+ 1 Cb（仅 444 时 2447 调用） sl->chroma_qp[0]
+ 2 Cr（444） sl->chroma_qp[1]
+*/
 static av_always_inline void decode_cabac_luma_residual(const H264Context *h, H264SliceContext *sl,
                                                         const uint8_t *scan, const uint8_t *scan8x8,
-                                                        int pixel_shift, int mb_type, int cbp, int p)
-{
+                                                        int pixel_shift, int mb_type, int cbp, int p){
+    /*
+     行      块                     Y / Cb / Cr
+     0      Intra 16×16 的 DC       0 / 6 / 10
+     1      Intra 16×16 的 AC       1 / 7 / 11
+     2      普通 4×4                 2 / 8 / 12
+     3      8×8                     5 / 9 / 13
+     */
     static const uint8_t ctx_cat[4][3] = {{0,6,10},{1,7,11},{2,8,12},{5,9,13}};
     const uint32_t *qmul;
     int i8x8, i4x4;
     int qscale = p == 0 ? sl->qscale : sl->chroma_qp[p - 1];
+    //I_16×16 亮度 固定是： 一个 16×16DC变换(16个4x4的DC系数)   16个4×4AC变换 
     if( IS_INTRA16x16( mb_type ) ) {
         AV_ZERO128(sl->mb_luma_dc[p]+0);
         AV_ZERO128(sl->mb_luma_dc[p]+8);
         AV_ZERO128(sl->mb_luma_dc[p]+16);
         AV_ZERO128(sl->mb_luma_dc[p]+24);
         decode_cabac_residual_dc(h, sl, sl->mb_luma_dc[p], ctx_cat[0][p], LUMA_DC_BLOCK_INDEX+p, scan, 16);
-
+        //亮度CBP的低4位里至少有一位是 1，这个宏块的亮度交流(AC)要读
         if( cbp&15 ) {
             qmul = h->ps.pps->dequant4_coeff[p][qscale];
             for( i4x4 = 0; i4x4 < 16; i4x4++ ) {
@@ -1889,17 +1982,20 @@ static av_always_inline void decode_cabac_luma_residual(const H264Context *h, H2
                 decode_cabac_residual_nondc(h, sl, sl->mb + (16*index << pixel_shift), ctx_cat[1][p], index, scan + 1, qmul, 15);
             }
         } else {
+            //如果没有AC系数直接填0
             fill_rectangle(&sl->non_zero_count_cache[scan8[16*p]], 4, 4, 8, 0, 1);
         }
     } else {
         int cqm = (IS_INTRA( mb_type ) ? 0:3) + p;
         for( i8x8 = 0; i8x8 < 4; i8x8++ ) {
+            //看cbp的前4位  0，左上 8×8 1，右上 8×8 2，左下 8×8  3，右下 8×8
             if( cbp & (1<<i8x8) ) {
                 if( IS_8x8DCT(mb_type) ) {
                     const int index = 16*p + 4*i8x8;
                     decode_cabac_residual_nondc(h, sl, sl->mb + (16*index << pixel_shift), ctx_cat[3][p], index,
                                                 scan8x8, h->ps.pps->dequant8_coeff[cqm][qscale], 64);
                 } else {
+                    //找到量化系数表
                     qmul = h->ps.pps->dequant4_coeff[cqm][qscale];
                     for( i4x4 = 0; i4x4 < 4; i4x4++ ) {
                         const int index = 16*p + 4*i8x8 + i4x4;
@@ -1916,6 +2012,8 @@ static av_always_inline void decode_cabac_luma_residual(const H264Context *h, H2
 /**
  * Decode a macroblock.
  * @return 0 if OK, ER_AC_ERROR / ER_DC_ERROR / ER_MV_ERROR if an error is noticed
+    这里开始解码一个16x16宏块
+    结束之后交流系数已做反量化 直流还需hardma变换
  */
 int ff_h264_decode_mb_cabac(const H264Context *h, H264SliceContext *sl)
 {
@@ -2023,6 +2121,7 @@ int ff_h264_decode_mb_cabac(const H264Context *h, H264SliceContext *sl)
         av_assert2(sl->slice_type_nos == AV_PICTURE_TYPE_I);
 decode_intra_mb:
         partition_count = 0;
+        //I16x16 此时 cbp  和 intra16x16_pred_mode  就是已知的  (查表)
         cbp                      = ff_h264_i_mb_type_info[mb_type].cbp;
         sl->intra16x16_pred_mode = ff_h264_i_mb_type_info[mb_type].pred_mode;
         mb_type                  = ff_h264_i_mb_type_info[mb_type].type;
@@ -2070,18 +2169,23 @@ decode_intra_mb:
     }
 
     fill_decode_caches(h, sl, mb_type);
-
+    
+    //解预测模式
     if( IS_INTRA( mb_type ) ) {
         int i, pred_mode;
+        //intra  亮度预测模式
         if( IS_INTRA4x4( mb_type ) ) {
             if (dct8x8_allowed && get_cabac_noinline(&sl->cabac, &sl->cabac_state[399 + sl->neighbor_transform_size])) {
                 mb_type |= MB_TYPE_8x8DCT;
+                //8x8 写4个
                 for( i = 0; i < 16; i+=4 ) {
                     int pred = pred_intra_mode(h, sl, i);
                     int mode = decode_cabac_mb_intra4x4_pred_mode(sl, pred);
+                    //2x2的区域写成一样的
                     fill_rectangle(&sl->intra4x4_pred_mode_cache[scan8[i]], 2, 2, 8, mode, 1);
                 }
             } else {
+                //4x4写16个
                 for( i = 0; i < 16; i++ ) {
                     int pred = pred_intra_mode(h, sl, i);
                     sl->intra4x4_pred_mode_cache[scan8[i]] = decode_cabac_mb_intra4x4_pred_mode(sl, pred);
@@ -2099,6 +2203,7 @@ decode_intra_mb:
                                                                      sl->left_samples_available, sl->intra16x16_pred_mode, 0);
             if (sl->intra16x16_pred_mode < 0) return -1;
         }
+        //intra  色度预测模式
         if(decode_chroma){
             h->chroma_pred_mode_table[mb_xy] =
             pred_mode                        = decode_cabac_mb_chroma_pre_mode(h, sl);
@@ -2325,12 +2430,13 @@ decode_intra_mb:
             }
         }
     }
-
-   if( IS_INTER( mb_type ) ) {
+    //桢间预测
+    if( IS_INTER( mb_type ) ) {
         h->chroma_pred_mode_table[mb_xy] = 0;
         write_back_motion(h, sl, mb_type);
-   }
-
+    }
+    
+    //CBP (I_16×16：CBP 不单独出现在宏块层，而是编在 intra_mb_type 里 ff_h264_i_mb_type_info[mb_type].cbp;)
     if( !IS_INTRA16x16( mb_type ) ) {
         cbp  = decode_cabac_mb_cbp_luma(sl);
         if(decode_chroma)
@@ -2395,7 +2501,7 @@ decode_intra_mb:
         const uint8_t *scan, *scan8x8;
         const uint32_t *qmul;
 
-        // decode_cabac_mb_dqp
+        // delta qp
         if(get_cabac_noinline( &sl->cabac, &sl->cabac_state[60 + (sl->last_qscale_diff != 0)])){
             int val = 1;
             int ctx= 2;
@@ -2409,7 +2515,6 @@ decode_intra_mb:
                     return -1;
                 }
             }
-
             if( val&0x01 )
                 val=   (val + 1)>>1 ;
             else
@@ -2420,11 +2525,13 @@ decode_intra_mb:
                 if (sl->qscale < 0) sl->qscale += max_qp + 1;
                 else                sl->qscale -= max_qp + 1;
             }
+            //色度qp基于亮度查表
             sl->chroma_qp[0] = get_chroma_qp(h->ps.pps, 0, sl->qscale);
             sl->chroma_qp[1] = get_chroma_qp(h->ps.pps, 1, sl->qscale);
         }else
             sl->last_qscale_diff=0;
 
+        //残差系数
         if(IS_INTERLACED(mb_type)){
             scan8x8 = sl->qscale ? h->field_scan8x8 : h->field_scan8x8_q0;
             scan    = sl->qscale ? h->field_scan : h->field_scan_q0;
@@ -2433,11 +2540,16 @@ decode_intra_mb:
             scan    = sl->qscale ? h->zigzag_scan : h->zigzag_scan_q0;
         }
 
+        ///解变换前的系数
+        //亮度
         decode_cabac_luma_residual(h, sl, scan, scan8x8, pixel_shift, mb_type, cbp, 0);
+        //色度
         if (CHROMA444(h)) {
+            //444 uv分量
             decode_cabac_luma_residual(h, sl, scan, scan8x8, pixel_shift, mb_type, cbp, 1);
             decode_cabac_luma_residual(h, sl, scan, scan8x8, pixel_shift, mb_type, cbp, 2);
         } else if (CHROMA422(h)) {
+            //422 uv分量
             if( cbp&0x30 ){
                 int c;
                 for (c = 0; c < 2; c++)
@@ -2464,16 +2576,24 @@ decode_intra_mb:
                 fill_rectangle(&sl->non_zero_count_cache[scan8[32]], 4, 4, 8, 0, 1);
             }
         } else /* yuv420 */ {
-            if( cbp&0x30 ){
+            //420 uv分量
+            /*
+             cbp&0x30 cbp 4、5 位
+             两位都是 0：色度没有残差
+             只有第 4 位（值 0x10）：只有色度直流
+             只有第 5 位（值 0x20）：色度直流和交流都有
+             
+             */
+            if( cbp&0x30 ){//色度（Cb . Cr）DC直流
                 int c;
-                for (c = 0; c < 2; c++)
+                for (c = 0; c < 2; c++) //Cb  Cr
                     decode_cabac_residual_dc(h, sl, sl->mb + ((256 + 16 * 16 * c) << pixel_shift),
                                              3, CHROMA_DC_BLOCK_INDEX + c, ff_h264_chroma_dc_scan, 4);
             }
 
-            if( cbp&0x20 ) {
+            if( cbp&0x20 ) {//色度交流AC
                 int c, i;
-                for( c = 0; c < 2; c++ ) {
+                for( c = 0; c < 2; c++ ) { //Cb  Cr
                     qmul = h->ps.pps->dequant4_coeff[c+1+(IS_INTRA( mb_type ) ? 0:3)][sl->chroma_qp[c]];
                     for( i = 0; i < 4; i++ ) {
                         const int index = 16 + 16 * c + i;

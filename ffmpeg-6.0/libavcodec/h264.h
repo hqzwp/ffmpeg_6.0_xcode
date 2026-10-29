@@ -23,7 +23,8 @@
 
 #ifndef AVCODEC_H264_H
 #define AVCODEC_H264_H
-
+//标准给 8 位视频规定的 QP 只能是 0 到 51。0 最细，系数几乎原样留下；51 最粗，多数系数会变成 0。51 就是这 52 档里的最后一档。
+//每高一位+6  最高14位
 #define QP_MAX_NUM (51 + 6*6)           // The maximum supported qp
 
 /*

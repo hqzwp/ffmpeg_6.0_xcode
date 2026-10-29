@@ -272,6 +272,7 @@ static av_always_inline void pred_pskip_motion(const H264Context *const h,
      * but it's faster this way.  Is there a way to avoid this duplication?
      */
     if (USES_LIST(sl->left_type[LTOP], 0)) {
+        //left_ref 就是左宏块参考帧的索引值
         left_ref = ref[4 * sl->left_mb_xy[LTOP] + 1 + (sl->left_block[0] & ~1)];
         A = mv[h->mb2b_xy[sl->left_mb_xy[LTOP]] + 3 + b_stride * sl->left_block[0]];
         FIX_MV_MBAFF(sl->left_type[LTOP], left_ref, A, 0);
@@ -322,7 +323,9 @@ static av_always_inline void pred_pskip_motion(const H264Context *const h,
             C            = zeromv;
         }
     }
-
+    
+    //开始预测 
+    ///左右斜上的个数
     match_count = !diagonal_ref + !top_ref + !left_ref;
     ff_tlog(h->avctx, "pred_pskip_motion match_count=%d\n", match_count);
     if (match_count > 1) {
@@ -559,6 +562,7 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
          */
         /* FIXME: constraint_intra_pred & partitioning & nnz
          * (let us hope this is just a typo in the spec) */
+        //上邻宏块 的 非零系数个数（nnz） 拷进 non_zero_count_cache，供后面 CABAC 解系数 当上下文。
         nnz_cache = sl->non_zero_count_cache;
         if (top_type) {
             nnz = h->non_zero_count[top_xy];
@@ -576,7 +580,7 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
             AV_WN32A(&nnz_cache[4 + 8 *  5], top_empty);
             AV_WN32A(&nnz_cache[4 + 8 * 10], top_empty);
         }
-
+        //左宏块非0系数
         for (i = 0; i < 2; i++) {
             if (left_type[LEFT(i)]) {
                 nnz = h->non_zero_count[left_xy[LEFT(i)]];
@@ -622,20 +626,26 @@ static void fill_decode_caches(const H264Context *h, H264SliceContext *sl, int m
             }
         }
     }
-
+    //填充参考帧跟运动矢量的缓冲区
+    // DIRECT 一种 B 帧宏块类型，运动矢量主要靠公式/邻块推出来，码流里往往不传 MVD、也不传系数。
     if (IS_INTER(mb_type) || (IS_DIRECT(mb_type) && sl->direct_spatial_mv_pred)) {
         int list;
         int b_stride = h->b_stride;
         for (list = 0; list < sl->list_count; list++) {
+            //宏块参考
             int8_t *ref_cache = &sl->ref_cache[list][scan8[0]];
+            //桢参考
             int8_t *ref       = h->cur_pic.ref_index[list];
+            //宏块的运动矢量 （int16_t[2]的数组 因为运动矢量是坐标）
             int16_t(*mv_cache)[2] = &sl->mv_cache[list][scan8[0]];
+            //桢的运动矢量  int16_t[2]的数组 因为运动矢量是坐标）
             int16_t(*mv)[2]       = h->cur_pic.motion_val[list];
             if (!USES_LIST(mb_type, list))
                 continue;
             av_assert2(!(IS_DIRECT(mb_type) && !sl->direct_spatial_mv_pred));
 
             if (USES_LIST(top_type, list)) {
+                //上子宏块的MV和参考引用
                 const int b_xy = h->mb2b_xy[top_xy] + 3 * b_stride;
                 AV_COPY128(mv_cache[0 - 1 * 8], mv[b_xy + 0]);
                 ref_cache[0 - 1 * 8] =
@@ -830,7 +840,8 @@ static void av_unused decode_mb_skip(const H264Context *h, H264SliceContext *sl)
     if (MB_FIELD(sl))
         mb_type |= MB_TYPE_INTERLACED;
 
-    if (sl->slice_type_nos == AV_PICTURE_TYPE_B) {
+    if (sl->slice_type_nos == AV_PICTURE_TYPE_B) {// B slice
+        //这里的B skip 是按照B Direc处理
         // just for fill_caches. pred_direct_motion will set the real mb_type
         mb_type |= MB_TYPE_L0L1 | MB_TYPE_DIRECT2 | MB_TYPE_SKIP;
         if (sl->direct_spatial_mv_pred) {
@@ -839,7 +850,7 @@ static void av_unused decode_mb_skip(const H264Context *h, H264SliceContext *sl)
         }
         ff_h264_pred_direct_motion(h, sl, &mb_type);
         mb_type |= MB_TYPE_SKIP;
-    } else {
+    } else {// p slice
         mb_type |= MB_TYPE_16x16 | MB_TYPE_P0L0 | MB_TYPE_P1L0 | MB_TYPE_SKIP;
 
         fill_decode_neighbors(h, sl, mb_type);

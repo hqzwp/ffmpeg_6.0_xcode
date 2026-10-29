@@ -80,32 +80,47 @@ typedef struct H264DSPContext {
                                       int mask_mv0, int mask_mv1, int field);
 
     /* IDCT */
+    //处理普通 4×4，用块里的 16 个系数做反变换，得到 4×4 的残差，加到 dst 上。
     void (*h264_idct_add)(uint8_t *dst /*align 4*/,
                           int16_t *block /*align 16*/, int stride);
+    //处理 8×8，用这一块的 64 个系数做反变换，得到 64 个残差 加到 8×8 的预测像素上。
     void (*h264_idct8_add)(uint8_t *dst /*align 8*/,
                            int16_t *block /*align 16*/, int stride);
+    //4×4左上角的DC不为0且其余为0 
     void (*h264_idct_dc_add)(uint8_t *dst /*align 4*/,
                              int16_t *block /*align 16*/, int stride);
+    //8×8左上角的DC不为0且其余为0 
     void (*h264_idct8_dc_add)(uint8_t *dst /*align 8*/,
                               int16_t *block /*align 16*/, int stride);
-
+    //处理整个宏块的 16 个亮度 4×4。它自己不做变换，而是逐块查看非零个数，再决定调用谁：只有左上角一个非零系数时调用 h264_idct_dc_add，否则调用 h264_idct_add。
     void (*h264_idct_add16)(uint8_t *dst /*align 16*/, const int *blockoffset,
                             int16_t *block /*align 16*/, int stride,
                             const uint8_t nnzc[5 * 8]);
+    //处理一个宏块里的 4 个亮度 8×8。宏块用了 8×8 变换
     void (*h264_idct8_add4)(uint8_t *dst /*align 16*/, const int *blockoffset,
                             int16_t *block /*align 16*/, int stride,
                             const uint8_t nnzc[5 * 8]);
+    //h264_idct_add8 做的是色度 4×4 的反变换。4:2:0 时 Cb、Cr 各 4 块，一共 8 块。dst[0] 是 Cb 的像素，dst[1] 是 Cr 的像素。
     void (*h264_idct_add8)(uint8_t **dst /*align 16*/, const int *blockoffset,
                            int16_t *block /*align 16*/, int stride,
                            const uint8_t nnzc[15 * 8]);
+    /*
+    这 16 个 4×4 的左上角直流被抽出来，单独组成一块 16 个直流，做哈达玛变换。每个 4×4 剩下 15 个交流系数。没有 8×8 变换，也没有运动矢量。
+    h264_idct_add16intra 处理的就是这 16 个 4×4。调用前，16 个直流已经反变换并填回各自的左上角。块里若还有交流，16 个系数一起反变换；若只剩左上角那个直流，就只加这一个数
+    */
     void (*h264_idct_add16intra)(uint8_t *dst /*align 16*/, const int *blockoffset,
                                  int16_t *block /*align 16*/,
                                  int stride, const uint8_t nnzc[5 * 8]);
+    
+    //用于 Intra16 亮度。input 是 mb_luma_dc 里的 16 个直流，
     void (*h264_luma_dc_dequant_idct)(int16_t *output,
                                       int16_t *input /*align 16*/, int qmul);
+    //色度DC系数反量化 反变换 它的输入和输出是同一块内存
     void (*h264_chroma_dc_dequant_idct)(int16_t *block, int qmul);
 
-    /* bypass-transform */
+    /* bypass-transform
+     直接预测加残差 dst[i] += block[i]
+     */
     void (*h264_add_pixels8_clear)(uint8_t *dst, int16_t *block, int stride);
     void (*h264_add_pixels4_clear)(uint8_t *dst, int16_t *block, int stride);
 

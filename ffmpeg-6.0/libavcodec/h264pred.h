@@ -90,24 +90,42 @@
 
 /**
  * Context for storing H.264 prediction functions
+   帧内预测函数
  */
 typedef struct H264PredContext {
+    //Intra4x4 共 15 个槽位：9 种标准模式 + 3 种边界 DC（左/上/128）+ 3 个给 RV40 等用的扩展。
+    /*
+                    topright（部分模式才用），
+        T0 T1 T2 T3 | TR0 TR1 TR2 TR3
+        ------------+----------------
+    L0 | 当前 4×4
+    L1 |
+    L2 |
+    L3 |
+    */
     void(*pred4x4[9 + 3 + 3])(uint8_t *src, const uint8_t *topright,
                               ptrdiff_t stride);
+    // Intra8×8 亮度预测函数表，9 种标准模式 + 3 种边界 DC。
     void(*pred8x8l[9 + 3])(uint8_t *src, int topleft, int topright,
                            ptrdiff_t stride);
+    //是色度帧内预测函数表：4 种标准模式（DC / 水平 / 垂直 / 平面）+ 3 种边界 DC + 4 个特殊 DC 变体。
     void(*pred8x8[4 + 3 + 4])(uint8_t *src, ptrdiff_t stride);
+    //是 Intra16×16 亮度预测函数表：4 种标准模式（垂直 / 水平 / DC / 平面）+ 3 种边界 DC + 2 个扩展槽位。
     void(*pred16x16[4 + 3 + 2])(uint8_t *src, ptrdiff_t stride);
-
+    //Intra4x4   transform_bypass（无损）
     void(*pred4x4_add[2])(uint8_t *pix /*align  4*/,
                           int16_t *block /*align 16*/, ptrdiff_t stride);
+    // Intra8×8 亮度 transform_bypass（无损）
     void(*pred8x8l_add[2])(uint8_t *pix /*align  8*/,
                            int16_t *block /*align 16*/, ptrdiff_t stride);
+    // Intra8×8 的无损旁路：预测时先对周围参考做 Intra8×8 滤波，再把残差加进去。
     void(*pred8x8l_filter_add[2])(uint8_t *pix /*align  8*/,
                            int16_t *block /*align 16*/, int topleft, int topright, ptrdiff_t stride);
+    // Intra8×8 色度 transform_bypass（无损）
     void(*pred8x8_add[3])(uint8_t *pix /*align  8*/,
                           const int *block_offset,
                           int16_t *block /*align 16*/, ptrdiff_t stride);
+    //Intra16×16   transform_bypass（无损）
     void(*pred16x16_add[3])(uint8_t *pix /*align 16*/,
                             const int *block_offset,
                             int16_t *block /*align 16*/, ptrdiff_t stride);

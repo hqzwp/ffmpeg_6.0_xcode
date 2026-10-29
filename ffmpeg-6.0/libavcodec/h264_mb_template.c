@@ -38,8 +38,7 @@
 #define CHROMA_IDC 2
 #include "h264_mc_template.c"
 
-static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContext *sl)
-{
+static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContext *sl){
     const int mb_x    = sl->mb_x;
     const int mb_y    = sl->mb_y;
     const int mb_xy   = sl->mb_xy;
@@ -56,12 +55,13 @@ static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContex
     dest_y  = h->cur_pic.f->data[0] + ((mb_x << PIXEL_SHIFT)     + mb_y * sl->linesize)  * 16;
     dest_cb = h->cur_pic.f->data[1] +  (mb_x << PIXEL_SHIFT) * 8 + mb_y * sl->uvlinesize * block_h;
     dest_cr = h->cur_pic.f->data[2] +  (mb_x << PIXEL_SHIFT) * 8 + mb_y * sl->uvlinesize * block_h;
-
+    //预读到CPU缓存 没有我的·1S出
     h->vdsp.prefetch(dest_y  + (sl->mb_x & 3) * 4 * sl->linesize   + (64 << PIXEL_SHIFT), sl->linesize,       4);
     h->vdsp.prefetch(dest_cb + (sl->mb_x & 7)     * sl->uvlinesize + (64 << PIXEL_SHIFT), dest_cr - dest_cb, 2);
-
+    //参考列表的数量
     h->list_counts[mb_xy] = sl->list_count;
-
+    
+    //场宏块
     if (!SIMPLE && MB_FIELD(sl)) {
         linesize     = sl->mb_linesize = sl->linesize * 2;
         uvlinesize   = sl->mb_uvlinesize = sl->uvlinesize * 2;
@@ -151,6 +151,7 @@ static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContex
         }
     } else {
         if (IS_INTRA(mb_type)) {
+            ///把top_border数据拷贝到dest_y dest_cb dest_cr 的顶部一行 用来做预测
             if (sl->deblocking_filter)
                 xchg_mb_border(h, sl, dest_y, dest_cb, dest_cr, linesize,
                                uvlinesize, 1, 0, SIMPLE, PIXEL_SHIFT);
@@ -159,11 +160,10 @@ static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContex
                 h->hpc.pred8x8[sl->chroma_pred_mode](dest_cb, uvlinesize);
                 h->hpc.pred8x8[sl->chroma_pred_mode](dest_cr, uvlinesize);
             }
-
             hl_decode_mb_predict_luma(h, sl, mb_type, SIMPLE,
                                       transform_bypass, PIXEL_SHIFT,
                                       block_offset, linesize, dest_y, 0);
-
+            //预测完之后把当前宏块的最下面一行 拷贝到top_border  供下次使用
             if (sl->deblocking_filter)
                 xchg_mb_border(h, sl, dest_y, dest_cb, dest_cr, linesize,
                                uvlinesize, 0, 0, SIMPLE, PIXEL_SHIFT);
@@ -189,7 +189,8 @@ static av_noinline void FUNC(hl_decode_mb)(const H264Context *h, H264SliceContex
 
         hl_decode_mb_idct_luma(h, sl, mb_type, SIMPLE, transform_bypass,
                                PIXEL_SHIFT, block_offset, linesize, dest_y, 0);
-
+        
+        //8位深  色度有系数
         if ((SIMPLE || !CONFIG_GRAY || !(h->flags & AV_CODEC_FLAG_GRAY)) &&
             (sl->cbp & 0x30)) {
             uint8_t *dest[2] = { dest_cb, dest_cr };

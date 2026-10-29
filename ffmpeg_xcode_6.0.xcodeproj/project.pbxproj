@@ -8421,6 +8421,7 @@
 		F326F51C2FEA9840006E2781 /* clock_demo.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = clock_demo.c; sourceTree = "<group>"; };
 		F326F51D2FEA9840006E2782 /* avio_demo.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = avio_demo.c; sourceTree = "<group>"; };
 		F332D17830651C8A00DC4574 /* cabac_t */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = cabac_t; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3430FAE308A124D00DC9015 /* ctips.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ctips.md; sourceTree = "<group>"; };
 		F34745DB2FC3DDE900BDD3EC /* ffplay */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = ffplay; sourceTree = BUILT_PRODUCTS_DIR; };
 		F34745FC2FC3DEF400BDD3EC /* libSDL-1.2.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSDL-1.2.0.dylib"; path = "../../../../../../opt/homebrew/Cellar/sdl12-compat/1.2.76/lib/libSDL-1.2.0.dylib"; sourceTree = "<group>"; };
 		F34746002FC3E2C000BDD3EC /* libSDL2-2.0.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libSDL2-2.0.0.dylib"; path = "../../../../../../opt/homebrew/Cellar/sdl2/2.32.10/lib/libSDL2-2.0.0.dylib"; sourceTree = "<group>"; };
@@ -10057,6 +10058,7 @@
 		90A4B5C12A7F2C4B009A3278 /* fftools */ = {
 			isa = PBXGroup;
 			children = (
+				F3430FAE308A124D00DC9015 /* ctips.md */,
 				90A4B5CE2A7F2C4B009A3278 /* fftools.manifest */,
 				90A4B5D82A7F2C4B009A3278 /* fftoolsres.rc */,
 				90A4B5CB2A7F2C4B009A3278 /* Makefile */,

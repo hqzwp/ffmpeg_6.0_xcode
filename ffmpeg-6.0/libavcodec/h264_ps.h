@@ -109,10 +109,27 @@ typedef struct SPS {
     int num_reorder_frames;
     //是否使用自定义量化矩阵
     int scaling_matrix_present;
+    
+    //量化的初始化参数
+    /*
+     第一层 6，是 6 套权重，给不同的块用：
+     下标    给谁
+     0      帧内亮度
+     1      帧内 Cb
+     2     帧内 Cr
+     3     帧间亮度
+     4     帧间 Cb
+     5     帧间 Cr
+     
+     第二层 16，是这一套里 4×4 的 16 个位置，一个位置一个权重。左上角是直流，往右、往下频率变高，右下角是最高频。权重大，这个位置量化更粗，更容易变成 0。
+     */
     //6 组 4×4 量化缩放矩阵
     uint8_t scaling_matrix4[6][16];
     //6 组 8×8 量化缩放矩阵（High Profile + 8×8 变换）
     uint8_t scaling_matrix8[6][64];
+    
+    
+    
     //NAL 层 HRD 参数是否存在
     int nal_hrd_parameters_present_flag;
     //VCL 层 HRD 参数是否存在
@@ -183,22 +200,46 @@ typedef struct PPS {
     int constrained_intra_pred;     ///< constrained_intra_pred_flag
     //slice header 是否带 redundant_pic_cnt（冗余图像计数，极少见）
     int redundant_pic_cnt_present;  ///< redundant_pic_cnt_present_flag
-    //是否允许 8×8 整数变换（High Profile）
+    //表示是否允许在本 PPS 下对亮度用 8×8 变换（High Profile）
     int transform_8x8_mode;         ///< transform_8x8_mode_flag
-    //6 组 4×4 量化缩放矩阵
+    //6 组 4×4 量化缩放矩阵  scaling_matrix4 是 4×4 缩放矩阵，标准里叫 ScalingList4x4。6 套，每套 16 个权重，来自 SPS 或 PPS；没有就用默认值。它只在生成 dequant4_coeff 时乘进去。
     uint8_t scaling_matrix4[6][16];
-    // 6 组 8×8 量化缩放矩阵（transform_8x8_mode=1 时用）
+    // 6 组 8×8 量化缩放矩阵（transform_8x8_mode=1 时用）  scaling_matrix8 是 8×8 的同一类矩阵，每套 64 个权重。只在 PPS 允许 8×8 变换时使用，用来生成 dequant8_coeff。
     uint8_t scaling_matrix8[6][64];
-    //色度量化表
+    
+    /*
+     sl->qscale只是代表亮度的qp  色度的qp要考这个表来查 
+     //第二层的下标是亮度 QP，从 0 到 87。格子里存的是这个亮度 QP 对应的色度 QP
+     sl->chroma_qp[0] = pps->chroma_qp_table[0][sl->qscale];  // Cb
+     sl->chroma_qp[1] = pps->chroma_qp_table[1][sl->qscale];  // Cr
+     //色度量化表 Cb  Cr  分别有各自的量化参数表
+     */
     uint8_t chroma_qp_table[2][QP_MAX_NUM+1];  ///< pre-scaled (with chroma_qp_index_offset) version of qp_table
     int chroma_qp_diff;
     uint8_t data[4096];
     size_t data_size;
-    //反量化 
+    //反量化
+    /*
+     第一层 6，是 6 套权重，给不同的块用：
+     下标    给谁
+     0      帧内亮度
+     1      帧内 Cb
+     2     帧内 Cr
+     3     帧间亮度
+     4     帧间 Cb
+     5     帧间 Cr
+     第二层
+     */
     uint32_t dequant4_buffer[6][QP_MAX_NUM + 1][16];
     uint32_t dequant8_buffer[6][QP_MAX_NUM + 1][64];
-    uint32_t(*dequant4_coeff[6])[16];
-    uint32_t(*dequant8_coeff[6])[64];
+    
+    ///反量化系数 3层
+    /*
+     还是先看括号里。括号里名字右边是 [6]，所以先是一个 6 个元素的数组。左边是 *，每个元素是指针。括号外面右边是 [16]，每个指针指向  uint32_t[16] 数组
+     可以从矩阵的角度理解 6行  QP_MAX_NUM+1列   每个元素的类型是 uint32_t[16]
+     */
+    uint32_t(*dequant4_coeff[6])[16];//4x4
+    uint32_t(*dequant8_coeff[6])[64];//16x16
 
     AVBufferRef *sps_ref;
     const SPS   *sps;

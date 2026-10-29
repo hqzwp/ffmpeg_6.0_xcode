@@ -101,7 +101,7 @@ static void remove_sps(H264ParamSets *s, int id)
 #endif
     av_buffer_unref(&s->sps_list[id]);
 }
-
+//解码器缓冲区和显示时间的约定
 static inline int decode_hrd_parameters(GetBitContext *gb, void *logctx,
                                         SPS *sps)
 {
@@ -223,7 +223,7 @@ static int decode_scaling_list(GetBitContext *gb, uint8_t *factors, int size,
     return 0;
 }
 
-/* returns non zero if the provided SPS scaling matrix has been filled */
+/* 量化参数的缩放矩阵 */
 static int decode_scaling_matrices(GetBitContext *gb, const SPS *sps,
                                     const PPS *pps, int is_sps,
                                     uint8_t(*scaling_matrix4)[16],
@@ -587,7 +587,7 @@ fail:
     av_buffer_unref(&sps_buf);
     return AVERROR_INVALIDDATA;
 }
-
+//初始化8x8反量化系数
 static void init_dequant8_coeff_table(PPS *pps, const SPS *sps)
 {
     int i, j, q, x;
@@ -614,7 +614,7 @@ static void init_dequant8_coeff_table(PPS *pps, const SPS *sps)
         }
     }
 }
-
+//初始化4x4反量化系数
 static void init_dequant4_coeff_table(PPS *pps, const SPS *sps)
 {
     int i, j, q, x;
@@ -623,12 +623,12 @@ static void init_dequant4_coeff_table(PPS *pps, const SPS *sps)
         pps->dequant4_coeff[i] = pps->dequant4_buffer[i];
         for (j = 0; j < i; j++)
             if (!memcmp(pps->scaling_matrix4[j], pps->scaling_matrix4[i],
-                        16 * sizeof(uint8_t))) {
+                        16 * sizeof(uint8_t))) {//有相同的就直接用之前算好的  这样不会重复计算
                 pps->dequant4_coeff[i] = pps->dequant4_buffer[j];
                 break;
             }
         if (j < i)
-            continue;
+            continue;//用之前算好的
 
         for (q = 0; q < max_qp + 1; q++) {
             int shift = ff_h264_quant_div6[q] + 2;
@@ -640,7 +640,7 @@ static void init_dequant4_coeff_table(PPS *pps, const SPS *sps)
         }
     }
 }
-
+//量化参数表
 static void init_dequant_tables(PPS *pps, const SPS *sps)
 {
     int i, x;
@@ -659,7 +659,7 @@ static void init_dequant_tables(PPS *pps, const SPS *sps)
                     pps->dequant8_coeff[i][0][x] = 1 << 6;
     }
 }
-
+//构建色度QP 
 static void build_qp_table(PPS *pps, int t, int index, const int depth)
 {
     int i;

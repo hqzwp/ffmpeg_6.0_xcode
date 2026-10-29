@@ -39,7 +39,7 @@
 // This table must be here because scan8[constant] must be known at compiletime
 
 /*
- 
+ 宏块中的变换块
  // & 7 % 8 表示 横向第几个 4×4 block。  >> 3 相当于 / 8  表示 纵向第几个 4×4 block。  乘 4  因为一个 block 是 4 个像素宽。
  // << pixel_shift  (pixel_shift>0 不变)
 
@@ -69,7 +69,7 @@
  */
 static const uint8_t scan8[16 * 3 + 3] = {
     
-    //前16个对应当前宏块的 16 个 4×4 luma block。在cache 中的位置 
+    //当前16个对应当前宏块的 16 个 4×4 luma block。在cache 中的位置 
     4 +  1 * 8, 5 +  1 * 8, 4 +  2 * 8, 5 +  2 * 8,
     6 +  1 * 8, 7 +  1 * 8, 6 +  2 * 8, 7 +  2 * 8,
     4 +  3 * 8, 5 +  3 * 8, 4 +  4 * 8, 5 +  4 * 8,

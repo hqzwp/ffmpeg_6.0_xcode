@@ -95,6 +95,28 @@
 #define IS_REF0(a)         ((a) & MB_TYPE_REF0)
 #define IS_8x8DCT(a)       ((a) & MB_TYPE_8x8DCT)
 
+
+
+/*
+ 420宏块概述
+ Intra16
+ 亮度：一块 16 个直流，来自 16 个 4×4 的左上角。交流是 16 个 4×4，每块 15 个。亮度 CBP 低 4 位为 0 时，这 16 块交流全是 0，直流块仍在。
+ 色度：Cb、Cr 各 4 个直流。色度 CBP 为 0，色度什么都没有；只有第 4 位（0x10）时只有这 4+4 个直流；第 5 位（0x20）时再各加 4 个 4×4，每块 15 个交流。
+ 
+ 帧内 4×4，不用 8×8
+ 亮度没有单独的直流块。最多 16 个 4×4，每块 16 个系数，左上角就是这块的直流。CBP 一位管一个 8×8，这一位为 0，里面 4 个 4×4 都没有系数。
+ 色度与 Intra16 相同：各 4 个直流，交流仍是每块 15 个，由色度 CBP 决定有没有。
+
+ 帧内 8×8、帧间 8×8
+ 亮度是 4 个 8×8，每块 64 个系数，直流在该 8×8 的左上角。CBP 一位对应一个 8×8。
+ 色度仍是上面那套 4 个直流加 4×15 交流，色度不用 8×8。
+
+ 帧间 4×4
+ 亮度和「帧内 4×4」一样：16 个 4×4，每块 16 个系数，直流在块内左上角。色度也仍是 4 个直流加 4×15 交流。
+ 
+ 跳过的宏块
+ 亮度和色度都没有残差，直流、交流都不出现。
+*/
 /**
  * Memory management control operation.
  */
@@ -114,6 +136,15 @@ typedef struct H264Picture {
     int8_t *qscale_table;
 
     AVBufferRef *motion_val_buf[2];
+    
+    /*
+     ref_index 确定每个宏块的参考帧的索引
+     motion_val 确定每个宏块在参考桢内距当前的宏块的偏移位置
+    */
+    
+    //当前桢有宏块(4×4)的NV的缓存   每个列表num=16*mb_height*stride个位置 每个位置int16_t[2]
+    //int16_t(*mv)[2]  = motion_val[list];
+    //mv[i] :int16_t[2]
     int16_t (*motion_val[2])[2];
 
     AVBufferRef *mb_type_buf;
@@ -123,6 +154,8 @@ typedef struct H264Picture {
     void *hwaccel_picture_private; ///< hardware accelerator private data
 
     AVBufferRef *ref_index_buf[2];
+    //当前帧的参考帧列表 每个列表的长度 4 × mb_num  （其中是num = mb_height*stride  乘4 是16x16分成4个8x8）
+    //每个num个位置存的是不同宏块的参考帧的索引
     int8_t *ref_index[2];
     //场编码 Picture Order Count（图像顺序计数），表示这张图在显示时间轴上的先后，不是解码顺序。
     int field_poc[2];       ///< top/bottom POC
@@ -180,9 +213,9 @@ typedef struct H264SliceContext {
     int slice_type_nos;         ///< S free slice type (SI/SP are remapped to I/P)
     //是否带 +5 固定标记，是的话，slice_type_nos 需要 +5
     int slice_type_fixed;
-    //本 slice 基础 QP
+    //当前宏块的亮度qp   基于上一宏块结束时的 QP
     int qscale;
-    //Cb/Cr 的 QP
+    //Cb/Cr色度 的 QP
     int chroma_qp[2];   // QPc
     //超过此 QP 可跳过环路滤波
     int qp_thresh;      ///< QP threshold to skip loopfilter
@@ -201,9 +234,12 @@ typedef struct H264SliceContext {
     int next_mb_skipped;
 
     int chroma_pred_mode;
+    //I16x16 
     int intra16x16_pred_mode;
 
     /*
+     当前宏块相关 
+     邻块 + 本 MB 正在解的 16 个 4×4 mode
      布局约定（配合 scan8）：
      本 MB 16 个 4×4 在 第 1–4 行、第 4–7 列（scan8 指这里）。
      上邻 4 个 mode 在 正上方同一列，所以是 第 0 行、第 4–7 列 → 起始下标 4 + 8*0。
@@ -221,19 +257,20 @@ typedef struct H264SliceContext {
      −1 无效/不可用（FFmpeg 占位，非码流语法值）
      */
     int8_t intra4x4_pred_mode_cache[5 * 8];
-    //放最近已解码的16x16宏块的下4右3 4×4子宏块的预测模式  每个16x16 对应8个字节(有效7个4+3)  mb2br_xy 存的是该缓存的索引
+    //整桢宏块相关  每个16x16 对应8个字节(有效7个4+3)  mb2br_xy 存的是该缓存的索引
     int8_t(*intra4x4_pred_mode);
 
     //相对于当前16x16的16x16宏块
     int topleft_mb_xy;
     int top_mb_xy;
     int topright_mb_xy;
+    //当前宏块的左侧 左宏块  16x16
     int left_mb_xy[LEFT_MBS];
     int topleft_type;
     int top_type;
     int topright_type;
     int left_type[LEFT_MBS];
-
+    //左宏块16x16中4x4字块的索引 32 bytes   
     const uint8_t *left_block;
     int topleft_partition;
     
@@ -251,9 +288,13 @@ typedef struct H264SliceContext {
     unsigned int left_samples_available;    //每位表示：该 4×4 预测时，左边一列  能不能用真实重建像素。
 
     ptrdiff_t linesize, uvlinesize;
+    /*
+     帧宏块：隔一行就是下一行，所以 mb_linesize 等于 linesize。
+     场宏块：隔一行是另一场，同场的下一行要再隔一行，所以 mb_linesize 是 linesize 的两倍
+     */
     ptrdiff_t mb_linesize;  ///< may be equal to s->linesize or s->linesize * 2, for mbaff
     ptrdiff_t mb_uvlinesize;
-    //当前正在解 的宏块列号
+    //当前正在解 的宏块列号 mb_x 是第几列宏块，从左往右。mb_y 才是第几行宏块，从上往下。
     int mb_x, mb_y;
     //当前宏块在frame中的位置
     int mb_xy;
@@ -269,9 +310,9 @@ typedef struct H264SliceContext {
     int is_complex;
     // 1 桢编码  
     int picture_structure;
-    //1 场编码
+    //1 场编码  这个宏块用帧方式还是场方式编」的开关
     int mb_field_decoding_flag;
-    //桢编码下的MBAFF
+    //桢编码下的MBAFF  仍是 frame picture，但 宏块级 可切换 frame MB / field MB；
     int mb_mbaff;               ///< mb_aff_frame && mb_field_decoding_flag
     //0 正常图像，继续解码  >0  冗余图像，同一幅图的额外编码副本
     int redundant_pic_count;
@@ -280,11 +321,15 @@ typedef struct H264SliceContext {
      * number of neighbors (top and/or left) that used 8x8 dct
      */
     int neighbor_transform_size;
-    //B桢才会有  决定 Direct 模式采用：
+    /*
+     B桢才会有  决定 Direct 模式 （B 片里的 Direct 宏块）：几乎不传 MVD，运动矢量主要靠 公式 + 邻块/共位块 推出来，L0、L1 往往都有，再做 双向加权 得到预测。
+     0  Temporal Direct：用 colocated （参考帧的相同位置的快） 块 在参考帧上的 MV + 时间比例 推 L0/L1
+     1  Spatial Direct：用 左/上邻块 MV（和 Inter MVP 类似）推 L0/L1
+     */
     int direct_spatial_mv_pred;
     int col_parity;
     int col_fieldoff;
-
+    //Code Block Pattern 当前宏块是否需要读残差。
     int cbp;
     int top_cbp;
     int left_cbp;
@@ -299,7 +344,7 @@ typedef struct H264SliceContext {
      * 参考帧列表
      */
     unsigned int ref_count[2];          ///< counts frames or fields, depending on current mb mode
-    //参考数量    I 桢的数量为0  
+    //参考列表的数量   I 为 0，P 为 1，B 为 2。
     unsigned int list_count;
     H264Ref ref_list[2][48];        /**< 0..15: frame refs, 16..47: mbaff field refs.
                                          *   Reordered version of default_ref_list
@@ -320,32 +365,57 @@ typedef struct H264SliceContext {
     //B 帧双向预测临时区：分别存 L0/L1 预测块，再合成最终预测。
     uint8_t *bipred_scratchpad;
     uint8_t *edge_emu_buffer;
+    
+    /*
+     ffmpeg现在 h264解码是解完一行宏块之后
+     当前正在解的宏块的上一行所有宏块的最底下一行像素，亮度和色度  而且是滤波之前的数据
+     （(16 * 3) * 2   YUV各16 *2 深度）  MBAFF下是两行
+     */
     uint8_t (*top_borders[2])[(16 * 3) * 2];
     int bipred_scratchpad_allocated;
     int edge_emu_buffer_allocated;
     int top_borders_allocated[2];
 
-    /**
+    /**非0系数个数缓存
      * non zero coeff count cache.
      * is 64 if not available.
+     * 除了 16 个 luma 4×4，还要放 Cb/Cr 各 4×4 的 nnz（cache 里用到 第 6–14 行
      */
     DECLARE_ALIGNED(8, uint8_t, non_zero_count_cache)[15 * 8];
 
     /**
      * Motion vector cache.
+     * 当前这一块周围 + 本块 4×4 的 MV 临时缓存。
+     * MV    最终的运动矢量
+     * MVP 运动矢量的预测值
+     * MVD 运动矢量的残差值
+     *MV = MVP + MVD
      */
     DECLARE_ALIGNED(16, int16_t, mv_cache)[2][5 * 8][2];
+    //两个参考帧列表 列表中存的是当前4x4宏块及周围宏块的参考的桢的索引
     DECLARE_ALIGNED(8,  int8_t, ref_cache)[2][5 * 8];
+    // 运动矢量的残差值
     DECLARE_ALIGNED(16, uint8_t, mvd_cache)[2][5 * 8][2];
+    //B 片 Direct 相关：邻块 Direct/8×8/16×16 等信息，供 Direct/CABAC。
+    //DIRECT 一种 B 帧宏块类型，运动矢量主要靠公式/邻块推出来，码流里往往不传 MVD、也不传系数。
     uint8_t direct_cache[5 * 8];
-
+    //8×8 Inter 时 4 个 8×8 子块 的分区类型（P/B sub_mb 语法）。
     DECLARE_ALIGNED(8, uint16_t, sub_mb_type)[4];
 
-    ///< as a DCT coefficient is int32_t in high depth, we need to reserve twice the space.
+    /*
+     当前宏块的变换系数仓库（反量化之前）。
+
+     CABAC 解出系数 后，先写进 sl->mb。
+     一块 4×4 最多 16 个系数；一个宏块有很多 4×4（luma + chroma），48 是 （YUV444 16 个 luma 4×4 + Cb各16个4×4 + Cr各16个4×4 = 48个）
+     每个宏块最多16个系数  48*16
+     [16 * 48 * 2] 乘2是因为 高位深再翻一倍
+     */
     DECLARE_ALIGNED(16, int16_t, mb)[16 * 48 * 2];
+    //当前宏块 Intra 16×16 亮度的 16 个直流量化系数。 Cb  Cr ...
     DECLARE_ALIGNED(16, int16_t, mb_luma_dc)[3][16 * 2];
     ///< as mb is addressed by scantable[i] and scantable is uint8_t we can either
     ///< check that i is not too large or ensure that there is some unused stuff after mb
+    ///< 边界/对齐用 扩展缓冲
     int16_t mb_padding[256 * 2];
 
     uint8_t (*mvd_table[2])[2];
@@ -354,7 +424,9 @@ typedef struct H264SliceContext {
      * Cabac
      */
     CABACContext cabac;
+    //cabac_state 是按语法元素分区的。一个语法元素占的不是一格，而是一整段，要根据查表找到在这段里面的哪一格。
     uint8_t cabac_state[1024];
+    //P/B 片头 cabac_init_idc（0/1/2），选哪一套 P/B 初始化表
     int cabac_init_idc;
 
     
@@ -403,11 +475,18 @@ typedef struct H264Context {
 
     H2645Packet pkt;
 
-    //sps->bit_depth_luma > 8;
+    //sps->bit_depth_luma > 8 ? 1 : 0;
     int pixel_shift;    ///< 0 for 8-bit H.264, 1 for high-bit-depth H.264
 
     /* coded dimensions -- 16 * mb w/h */
     int width, height;
+    //表示色度相对亮度在宽、高上各缩小几倍，用右移次数来写。
+    /*
+     格式    chroma_x_shift    chroma_y_shift    一个宏块的色度大小
+     4:2:0  1                  1                8×8
+     4:2:2  1                  0                8×16
+     4:4:4  0                  0                16×16
+     */
     int chroma_x_shift, chroma_y_shift;
 
     int droppable;
@@ -441,7 +520,7 @@ typedef struct H264Context {
 
     int8_t(*intra4x4_pred_mode);
     H264PredContext hpc;
-
+    //按宏块存[[0...48],[0...48],[0...48],[0...48],[0...48]]
     uint8_t (*non_zero_count)[48];
 
 #define LIST_NOT_USED -1 // FIXME rename?
@@ -463,12 +542,13 @@ typedef struct H264Context {
      当前宏块内部，第 i 个 4×4 块的左上角  在整个内存图像的字节偏移。
      */
     int block_offset[2 * (16 * 3)];
-
+    //存的是：宏块 mb_xy 在整帧 motion_val 4×4 网格里的 起始块号 b_xy（左上角第一个 4×4 的下标）。
     uint32_t *mb2b_xy;  // FIXME are these 4 a good idea?
     //存每个宏块在intra4x4_pred_mode中的偏移量  mb_xy = 8; mb2br_xy[mb_xy] 表示在intra4x4_pred_mode的偏移量
     uint32_t *mb2br_xy;
+    //b_stride = mb_width × 4
     int b_stride;       // FIXME use s->b4_stride
-    //当前宏块属于哪个slice 
+    //当前宏块属于哪个slice   所有16x16宏块所属的slice num 
     uint16_t *slice_table;      ///< slice_table_base + 2*mb_stride + 1
 
     // interlacing specific flags
@@ -485,10 +565,32 @@ typedef struct H264Context {
 
     uint8_t *list_counts;               ///< Array of list_count per MB specifying the slice type
 
-    /* 0x100 -> non null luma_dc, 0x80/0x40 -> non null chroma_dc (cb/cr), 0x?0 -> chroma_cbp(0, 1, 2), 0x0? luma_cbp */
+    /*
+    code block pattern
+     
+     位           数值               含义
+     0–3        0x1–0x8          亮度 4 个 8×8，要不要读残差。左上、右上、左下、右下各一位
+     4–5        0、0x10、0x20     色度。0 不读，1 只读直流，2 直流和交流都读
+     6          0x40              Cb 直流里确实有非零系数
+     7          0x80              Cr 直流里确实有非零系数
+     8          0x100             Intra 16×16 的亮度直流里确实有非零系数
+     9          0x200             4:4:4 时 Cb 那块 16 个直流里有非零系数
+     10         0x400             4:4:4 时 Cr 那块有非零系数
+     11         —                   正常解码不用
+     12–15      0x1000 起         主要是 CAVLC 用的。4 个亮度 8×8 解完以后，哪一块真有非零系数，留给去块滤波。CABAC 不靠这 4 位
+     
+     
+     哪些区域要从码流里读残差，不说明读出来一定有非零系数。 （后来又多记了几位，那几位才是「直流块里确实有非零数」）
+     0–47 是按最细的 4×4 给三个分量编号，4:4:4 时每个分量 16 块。48、49、50 是额外加上的直流块，不属于这 48 个 4×4。
+     ex:
+     宏块对应的CBP前4位是0001 时 此时代表第一个8x8是有系数的
+     每个 4×4 自己的开关是 coded block flag
+    */
     uint16_t *cbp_table;
 
-    /* chroma_pred_mode for i4x4 or i16x16, else 0 */
+    /* chroma_pred_mode for i4x4 or i16x16, else 0
+     桢内 Intra 色度整宏块共用 1 个 pred_mode
+     */
     uint8_t *chroma_pred_mode_table;
     uint8_t (*mvd_table[2])[2];
     uint8_t *direct_table;
@@ -750,7 +852,7 @@ static av_always_inline int pred_intra_mode(const H264Context *h,
     else
         return min;
 }
-
+//宏块相关的缓存 写到整个桢相关的缓存
 static av_always_inline void write_back_intra_pred_mode(const H264Context *h,
                                                         H264SliceContext *sl)
 {
@@ -828,7 +930,9 @@ static av_always_inline void write_back_motion(const H264Context *h,
                                                int mb_type)
 {
     const int b_stride      = h->b_stride;
+    // 在 motion_val 里按 4×4 子块定位
     const int b_xy  = 4 * sl->mb_x + 4 * sl->mb_y * h->b_stride; // try mb2b(8)_xy
+    //在 ref_index 里按 8×8 子块定位
     const int b8_xy = 4 * sl->mb_xy;
 
     if (USES_LIST(mb_type, 0)) {

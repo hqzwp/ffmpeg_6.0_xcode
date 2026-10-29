@@ -625,6 +625,7 @@ static av_always_inline void hl_decode_mb_predict_luma(const H264Context *h,
     int qscale = p == 0 ? sl->qscale : sl->chroma_qp[p - 1];
     block_offset += 16 * p;
     if (IS_INTRA4x4(mb_type)) {
+        //这里的反量化 已经在ff_h264_decode_mb_cabac中实现
         if (IS_8x8DCT(mb_type)) {
             if (transform_bypass) {
                 idct_dc_add =
@@ -795,7 +796,7 @@ static av_always_inline void hl_decode_mb_idct_luma(const H264Context *h, H264Sl
 #undef  SIMPLE
 #define SIMPLE 0
 #include "h264_mb_template.c"
-
+//Intra16 亮度和色度的直流在这里反哈达玛并反量化；然后对每个 4×4 或 8×8 做反变换，把残差加到预测上，写进当前图像
 void ff_h264_hl_decode_mb(const H264Context *h, H264SliceContext *sl)
 {
     const int mb_xy   = sl->mb_xy;

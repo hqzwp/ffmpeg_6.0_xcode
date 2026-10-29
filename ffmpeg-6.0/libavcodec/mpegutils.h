@@ -88,7 +88,7 @@
 #define IS_QUANT(a)      ((a) & MB_TYPE_QUANT)
 #define IS_DIR(a, part, list) ((a) & (MB_TYPE_P0L0 << ((part) + 2 * (list))))
 
-// does this mb use listX, note does not work if subMBs
+// does this mb use listX, note does not work if subMBs  这个宏块是否需要 L0 或 L1 这一套运动信息
 #define USES_LIST(a, list) ((a) & ((MB_TYPE_P0L0 | MB_TYPE_P1L0) << (2 * (list))))
 
 #define HAS_CBP(a)       ((a) & MB_TYPE_CBP)

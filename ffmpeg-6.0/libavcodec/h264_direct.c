@@ -716,7 +716,7 @@ single_col:
         }
     }
 }
-
+// 负责 B 片 Direct 整条 MV 推导并写入 motion_val/ref_index；16×16 下常是 16 个 4×4×L0/L1 两套，但不是文件里唯一场景。
 void ff_h264_pred_direct_motion(const H264Context *const h, H264SliceContext *sl,
                                 int *mb_type)
 {

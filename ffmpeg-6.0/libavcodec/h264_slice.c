@@ -2571,6 +2571,7 @@ static int decode_slice(struct AVCodecContext *avctx, void *arg)
         ff_h264_init_cabac_states(h, sl);
 
         for (;;) {
+            //decode macro block 
             int ret, eos;
             if (sl->mb_x + sl->mb_y * h->mb_width >= sl->next_slice_idx) {
                 av_log(h->avctx, AV_LOG_ERROR, "Slice overlaps with next at %d\n",
